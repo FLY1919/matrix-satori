@@ -1,0 +1,35 @@
+[package]
+name = "matrix-satori"
+version = "0.1.0"
+edition = "2021"
+description = "A Satori protocol server backed by Matrix, usable from Koishi via adapter-satori"
+license = "MIT"
+repository = "https://github.com/FLY1919/matrix-satori"
+
+[[bin]]
+name = "matrix-satori"
+path = "src/main.rs"
+
+[lib]
+name = "matrix_satori"
+path = "src/lib.rs"
+
+[dependencies]
+axum = { version = "0.7", features = ["ws", "macros"] }
+tokio = { version = "1", features = ["full", "signal"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "gzip"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+clap = { version = "4", features = ["derive", "env"] }
+futures = "0.3"
+thiserror = "1"
+anyhow = "1"
+uuid = { version = "1", features = ["v4"] }
+url = "2"
+
+[dev-dependencies]
+tokio-tungstenite = { version = "0.21", features = ["connect"] }
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"

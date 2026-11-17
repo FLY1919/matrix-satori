@@ -1,0 +1,24 @@
+services:
+  matrix-satori:
+    image: ghcr.io/fly1919/matrix-satori:latest
+    build: .
+    container_name: matrix-satori
+    restart: unless-stopped
+    ports:
+      - "5140:5140"
+      # SSO 交互登录时需要把回调端口也映射出去（并用 --sso-redirect-uri 指向可达地址）
+      # - "8088:8088"
+    environment:
+      MATRIX_HOMESERVER: ${MATRIX_HOMESERVER:-https://matrix.example.com}
+      MATRIX_LOGIN_METHOD: ${MATRIX_LOGIN_METHOD:-password}
+      MATRIX_USERNAME: ${MATRIX_USERNAME:-}
+      MATRIX_PASSWORD: ${MATRIX_PASSWORD:-}
+      MATRIX_USER_ID: ${MATRIX_USER_ID:-}
+      SATORI_TOKEN: ${SATORI_TOKEN:-change-me}
+      SATORI_BIND: 0.0.0.0:5140
+      RUST_LOG: ${RUST_LOG:-info}
+    volumes:
+      - matrix-satori-data:/app/data
+
+volumes:
+  matrix-satori-data:
