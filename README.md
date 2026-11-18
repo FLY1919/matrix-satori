@@ -68,7 +68,9 @@ Mozilla 官方给 bot 取 token 的做法（见 [Taskcluster 文档](https://fir
 
 自动下载对应平台的预编译二进制、校验 SHA256、生成配置与启动单元。脚本内置** GitHub 加速源回退**，国内网络可用。
 
-### Linux / macOS
+> **平台支持**：预编译包只覆盖 Linux（x86_64 / arm64 / armv7）与 Windows（x86_64）。**macOS 不提供预编译包**，请用 `--from-source` 从源码编译（见下方）。
+
+### Linux
 
 ```bash
 # 国内推荐用 jsdelivr CDN（raw.githubusercontent.com 常被重置）：
@@ -88,7 +90,7 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 > Windows 原生没有 `sh`，所以单独提供 `install.ps1`。二进制装到 `%LOCALAPPDATA%\matrix-satori\bin`，配置在 `%APPDATA%\matrix-satori\`，并生成一个读取配置后启动的 `start-matrix-satori.ps1`。
 
 安装脚本会：
-- 自动识别系统/架构（Linux x86_64 / arm64 / armv7、macOS Intel / Apple Silicon、Windows x86_64），下载对应 Release 包并校验 SHA256
+- 自动识别系统/架构（Linux x86_64 / arm64 / armv7、Windows x86_64），下载对应 Release 包并校验 SHA256；macOS 会提示改用 `--from-source`
 - 下载/API 查询失败时**自动回退到国内加速源**（gh-proxy / ghfast / jsdelivr）
 - 二进制默认装到 `/usr/local/bin`（非 root 装到 `~/.local/bin`；Windows 见上）
 - 生成配置模板（随机 Satori token、homeserver、登录方式等）；Linux root + systemd 时另生成服务单元

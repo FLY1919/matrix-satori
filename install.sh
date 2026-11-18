@@ -119,6 +119,9 @@ json_field() {
 }
 
 # 检测平台，设置 TARGET 与 EXT
+# MACOS=1 表示当前是 macOS：CI 不再产出 apple-darwin 预编译包，
+# 因此这类平台只能走 --from-source 编译。
+MACOS=0
 detect_target() {
   os=$(uname -s); arch=$(uname -m)
   case "$os" in
@@ -130,6 +133,7 @@ detect_target() {
         *) fail "不支持的 CPU 架构: $arch" ;;
       esac ;;
     Darwin)
+      MACOS=1
       case "$arch" in
         x86_64)         TARGET="x86_64-apple-darwin" ;;
         arm64|aarch64)  TARGET="aarch64-apple-darwin" ;;
@@ -249,6 +253,17 @@ download_asset() {
 
 install_from_release() {
   detect_target
+  if [ "$MACOS" -eq 1 ]; then
+    cat >&2 <<EOF
+提示: 当前为 macOS。本项目不再提供 macOS 预编译包（CI 已移除 macOS 构建），
+      因此无法一键下载。请在 macOS 上用源码编译安装（需本机有 Rust）:
+
+        sh install.sh --from-source
+
+      若只是想要一个能在 Mac 上跑的二进制，也可以自行 cargo build --release。
+EOF
+    exit 1
+  fi
   ASSET="${BIN}_${VERSION}_${TARGET}.${EXT}"
   REL="${REPO}/releases/download/${VERSION}/${ASSET}"
   say "下载: $DOWNLOAD_BASE/$REL"
@@ -401,6 +416,9 @@ do_doctor() {
   say ""
   say "[2/4] 平台识别"
   detect_target 2>/dev/null || say "  未能识别当前平台"
+  if [ "$MACOS" -eq 1 ]; then
+    say "  注意: macOS 无预编译包，请用 --from-source 从源码编译"
+  fi
   say ""
   say "[3/4] 仓库 Release 状态"
   found=0
