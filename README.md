@@ -64,7 +64,46 @@ Mozilla 官方给 bot 取 token 的做法（见 [Taskcluster 文档](https://fir
 
 > `mozilla.modular.im` 的 `/.well-known/matrix/client` 是 404，务必**显式写 homeserver URL**。`chat.mozilla.org` 只是网页客户端，不是 homeserver API 地址。
 
-## 快速开始
+## 一键安装（推荐）
+
+一行命令自动下载对应平台的预编译二进制、校验 SHA256、生成配置与 systemd 单元：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/FLY1919/matrix-satori/main/install.sh | sh
+```
+
+安装脚本会：
+- 自动识别系统/架构（Linux x86_64 / arm64 / armv7、macOS Intel / Apple Silicon、Windows x86_64），从最新 Release 下载对应包并校验 SHA256
+- 二进制默认装到 `/usr/local/bin`（非 root 装到 `~/.local/bin`）
+- 生成 `matrix-satori.env` 配置模板（随机 Satori token、homeserver、登录方式等）和 systemd 单元
+- root 且检测到 systemd 时，提示用 `systemctl enable --now matrix-satori` 启动
+
+装完**先编辑配置**再启动：
+
+```bash
+# root 默认在 /etc/matrix-satori/matrix-satori.env，非 root 在 ~/.config/matrix-satori/
+sudo nano /etc/matrix-satori/matrix-satori.env
+# 填入 MATRIX_HOMESERVER、登录凭据，按需改 SATORI_BIND / SATORI_TOKEN
+sudo systemctl enable --now matrix-satori
+```
+
+常用参数：
+
+```bash
+# 指定版本 / 安装目录 / 不开 systemd / 自定义 homeserver 与登录方式
+sh install.sh --version v0.1.0 --install-dir ~/.local/bin --no-systemd \
+  --homeserver https://matrix.example.com --login-method password
+
+sh install.sh --from-source                     # 本机有 Rust 时从源码编译
+sh install.sh --uninstall                       # 卸载
+sh install.sh --help                            # 全部选项
+```
+
+> SSO 登录需要浏览器能访问回调地址，跑在服务器上时要注意（见上方"关于 SSO 登录"）。容器部署见下方 Docker 章节。
+
+## 手动运行
+
+已经装好二进制、想直接跑：
 
 ```bash
 matrix-satori \
