@@ -1,1 +1,488 @@
-IyEvdXNyL2Jpbi9lbnYgc2gKIyBtYXRyaXgtc2F0b3JpIOS4gOmUruWuieijheiEmuacrAojIOS7jiBHaXRIdWIgUmVsZWFzZXMg5LiL6L296aKE57yW6K+R5LqM6L+b5Yi25bm25a6J6KOF77yM6Ieq5Yqo55Sf5oiQ6YWN572u5qih5p2/5LiOIHN5c3RlbWQg5Y2V5YWD44CCCiMKIyDnlKjms5XnpLrkvos6CiMgICBjdXJsIC1mc1NMIGh0dHBzOi8vcmF3LmdpdGh1YnVzZXJjb250ZW50LmNvbS9GTFkxOTE5L21hdHJpeC1zYXRvcmkvbWFpbi9pbnN0YWxsLnNoIHwgc2gKIyAgIHNoIGluc3RhbGwuc2ggLS12ZXJzaW9uIHYwLjEuMCAtLWluc3RhbGwtZGlyIH4vLmxvY2FsL2JpbiAtLW5vLXN5c3RlbWQKIyAgIHNoIGluc3RhbGwuc2ggLS1mcm9tLXNvdXJjZSAgICAgICAgICAjIOacrOacuuaciSBSdXN0IOaXtuS7jua6kOeggee8luivkQojICAgc2ggaW5zdGFsbC5zaCAtLXVuaW5zdGFsbCAgICAgICAgICAgICMg5Y246L29CnNldCAtZXUKCkJJTj0ibWF0cml4LXNhdG9yaSIKUkVQTz0iRkxZMTkxOS9tYXRyaXgtc2F0b3JpIgpBUElfQkFTRT0iaHR0cHM6Ly9hcGkuZ2l0aHViLmNvbSIKRE9XTkxPQURfQkFTRT0iaHR0cHM6Ly9naXRodWIuY29tIgpWRVJTSU9OPSIiCklOU1RBTExfRElSPSIiCkNPTkZJR19ESVI9IiIKU1lTVEVNRD0iYXV0byIgICAgICAgICAgIyBhdXRvIHwgeWVzIHwgbm8KRlJPTV9TT1VSQ0U9MApVTklOU1RBTEw9MApBU1NVTUVfWUVTPTAKRE9DVE9SPTAKSE9NRVNFUlZFUj0iaHR0cHM6Ly9tb3ppbGxhLm1vZHVsYXIuaW0iCkxPR0lOX01FVEhPRD0ic3NvIgpTQVRPUklfQklORD0iMTI3LjAuMC4xOjUxNDAiClNBVE9SSV9UT0tFTj0iIgoKc2F5KCkgIHsgcHJpbnRmICclc1xuJyAiJCoiOyB9CmZhaWwoKSB7IHByaW50ZiAn6ZSZ6K+vOiAlc1xuJyAiJCoiID4mMjsgZXhpdCAxOyB9Cgp1c2FnZSgpIHsKICBjYXQgPDxFT0YKbWF0cml4LXNhdG9yaSDkuIDplK7lronoo4UKCueUqOazlTogc2ggaW5zdGFsbC5zaCBb6YCJ6aG5XQoK6YCJ6aG5OgogIC12LCAtLXZlcnNpb24gVkVSICAgICAgIOaMh+WumueJiOacrCB0YWfvvIzpu5jorqToh6rliqjlj5bmnIDmlrAgUmVsZWFzZQogICAgICAtLWluc3RhbGwtZGlyIERJUiAgIOS6jOi/m+WItuWuieijheebruW9lSAo6buY6K6kOiByb290PS91c3IvbG9jYWwvYmluLCDlkKbliJkgfi8ubG9jYWwvYmluKQogICAgICAtLWNvbmZpZy1kaXIgRElSICAgIOmFjee9ruebruW9lSAo6buY6K6kOiByb290PS9ldGMvbWF0cml4LXNhdG9yaSwg5ZCm5YiZIH4vLmNvbmZpZy9tYXRyaXgtc2F0b3JpKQogICAgICAtLXN5c3RlbWQgICAgICAgICAgIOW8uuWItueUn+aIkOW5tuWuieijhSBzeXN0ZW1kIOWNleWFgwogICAgICAtLW5vLXN5c3RlbWQgICAgICAgIOS4jeeUn+aIkCBzeXN0ZW1kIOWNleWFgwogICAgICAtLWhvbWVzZXJ2ZXIgVVJMICAgIE1hdHJpeCBob21lc2VydmVyICjpu5jorqQgJEhPTUVTRVJWRVIpCiAgICAgIC0tbG9naW4tbWV0aG9kIE0gICAgYXV0by9wYXNzd29yZC90b2tlbi9zc28vYXBwbGljYXRpb25zZXJ2aWNlL2FjY2Vzc3Rva2VuICjpu5jorqQgJExPR0lOX01FVEhPRCkKICAgICAgLS1iaW5kIEFERFIgICAgICAgICBTYXRvcmkg55uR5ZCs5Zyw5Z2AICjpu5jorqQgJFNBVE9SSV9CSU5EKQogICAgICAtLXRva2VuIFRPS0VOICAgICAgIFNhdG9yaSDlhbHkuqvlr4bpkqUgKOm7mOiupOmaj+acuueUn+aIkCkKICAteSwgLS15ZXMgICAgICAgICAgICAgICDot7Pov4fkuqTkupLmj5DnpLoKICAgICAgLS1mcm9tLXNvdXJjZSAgICAgICDlv73nlaUgUmVsZWFzZe+8jOebtOaOpeeUqCBjYXJnbyDku47mupDnoIHnvJbor5EKICAgICAgLS11bmluc3RhbGwgICAgICAgICDljbjovb3lt7Llronoo4XnmoTkuozov5vliLbkuI4gc3lzdGVtZCDljZXlhYMKICAgICAgLS1yZXBvIE9XTkVSL05BTUUgICDku5PlupMgKOm7mOiupCAkUkVQTykKICAgICAgLS1hcGktYmFzZSBVUkwgICAgICBHaXRIdWIgQVBJIOWcsOWdgCAo6buY6K6kICRBUElfQkFTRSkKICAgICAgLS1kb3dubG9hZC1iYXNlIFVSTCBSZWxlYXNlIOS4i+i9veWfuuWdgCAo6buY6K6kICRET1dOTE9BRF9CQVNFKQogICAgICAtLWRvY3RvciAgICAgICAgICAgIOiHquajgO+8muW3peWFty/lubPlj7Av5LuT5bqTIFJlbGVhc2Ug54q25oCBL+mVnOWDj+i/numAmuaAp++8jOS4jeWuieijhQogIC1oLCAtLWhlbHAgICAgICAgICAgICAgIOaYvuekuuacrOW4ruWKqQpFT0YKfQoKd2hpbGUgWyAkIyAtZ3QgMCBdOyBkbwogIGNhc2UgIiQxIiBpbgogICAgLXZ8LS12ZXJzaW9uKSAgICAgICBWRVJTSU9OPSIkezI6Py0tdmVyc2lvbiDpnIDopoHlgLx9Ijsgc2hpZnQgMiA7OwogICAgLS1pbnN0YWxsLWRpcikgICAgICBJTlNUQUxMX0RJUj0iJHsyOj8tLWluc3RhbGwtZGlyIOmcgOimgeWAvH0iOyBzaGlmdCAyIDs7CiAgICAtLWNvbmZpZy1kaXIpICAgICAgIENPTkZJR19ESVI9IiR7Mjo/LS1jb25maWctZGlyIOmcgOimgeWAvH0iOyBzaGlmdCAyIDs7CiAgICAtLXN5c3RlbWQpICAgICAgICAgIFNZU1RFTUQ9eWVzOyBzaGlmdCA7OwogICAgLS1uby1zeXN0ZW1kKSAgICAgICBTWVNURU1EPW5vOyBzaGlmdCA7OwogICAgLS1ob21lc2VydmVyKSAgICAgICBIT01FU0VSVkVSPSIkezI6Py0taG9tZXNlcnZlciDpnIDopoHlgLx9Ijsgc2hpZnQgMiA7OwogICAgLS1sb2dpbi1tZXRob2QpICAgICBMT0dJTl9NRVRIT0Q9IiR7Mjo/LS1sb2dpbi1tZXRob2Qg6ZyA6KaB5YC8fSI7IHNoaWZ0IDIgOzsKICAgIC0tYmluZCkgICAgICAgICAgICAgU0FUT1JJX0JJTkQ9IiR7Mjo/LS1iaW5kIOmcgOimgeWAvH0iOyBzaGlmdCAyIDs7CiAgICAtLXRva2VuKSAgICAgICAgICAgIFNBVE9SSV9UT0tFTj0iJHsyOj8tLXRva2VuIOmcgOimgeWAvH0iOyBzaGlmdCAyIDs7CiAgICAteXwtLXllcykgICAgICAgICAgIEFTU1VNRV9ZRVM9MTsgc2hpZnQgOzsKICAgIC0tZnJvbS1zb3VyY2UpICAgICAgRlJPTV9TT1VSQ0U9MTsgc2hpZnQgOzsKICAgIC0tdW5pbnN0YWxsKSAgICAgICAgVU5JTlNUQUxMPTE7IHNoaWZ0IDs7CiAgICAtLXJlcG8pICAgICAgICAgICAgIFJFUE89IiR7Mjo/LS1yZXBvIOmcgOimgeWAvH0iOyBzaGlmdCAyIDs7CiAgICAtLWFwaS1iYXNlKSAgICAgICAgIEFQSV9CQVNFPSIkezI6Py0tYXBpLWJhc2Ug6ZyA6KaB5YC8fSI7IHNoaWZ0IDIgOzsKICAgIC0tZG93bmxvYWQtYmFzZSkgICAgRE9XTkxPQURfQkFTRT0iJHsyOj8tLWRvd25sb2FkLWJhc2Ug6ZyA6KaB5YC8fSI7IHNoaWZ0IDIgOzsKICAgIC0tZG9jdG9yKSAgICAgICAgICAgRE9DVE9SPTE7IHNoaWZ0IDs7CiAgICAtaHwtLWhlbHApICAgICAgICAgIHVzYWdlOyBleGl0IDAgOzsKICAgICopIGZhaWwgIuacquefpeWPguaVsDogJDEgKOeUqCAtLWhlbHAg5p+l55yL55So5rOVKSIgOzsKICBlc2FjCmRvbmUKCmlzX3Jvb3QoKSB7IFsgIiQoaWQgLXUpIiA9ICIwIiBdOyB9CgpTVURPPSIiCm5lZWRfc3VkbygpIHsKICBbIC1uICIkU1VETyIgXSAmJiByZXR1cm4gMAogIGlzX3Jvb3QgJiYgcmV0dXJuIDAKICBjb21tYW5kIC12IHN1ZG8gPi9kZXYvbnVsbCAyPiYxICYmIFNVRE89InN1ZG8iCiAgcmV0dXJuIDAKfQoKaHR0cF9nZXQoKSB7CiAgaWYgY29tbWFuZCAtdiBjdXJsID4vZGV2L251bGwgMj4mMTsgdGhlbgogICAgY3VybCAtZnNTTCAiJDEiCiAgZWxpZiBjb21tYW5kIC12IHdnZXQgPi9kZXYvbnVsbCAyPiYxOyB0aGVuCiAgICB3Z2V0IC1xTy0gIiQxIgogIGVsc2UKICAgIGZhaWwgIumcgOimgSBjdXJsIOaIliB3Z2V0IgogIGZpCn0KCmh0dHBfZG93bmxvYWQoKSB7CiAgaWYgY29tbWFuZCAtdiBjdXJsID4vZGV2L251bGwgMj4mMTsgdGhlbgogICAgY3VybCAtZnNTTCAtbyAiJDIiICIkMSIKICBlbGlmIGNvbW1hbmQgLXYgd2dldCA+L2Rldi9udWxsIDI+JjE7IHRoZW4KICAgIHdnZXQgLXEgLU8gIiQyIiAiJDEiCiAgZWxzZQogICAgZmFpbCAi6ZyA6KaBIGN1cmwg5oiWIHdnZXQiCiAgZmkKfQoKanNvbl9maWVsZCgpIHsKICBrZXk9IiQxIjsganNvbj0iJDIiCiAgaWYgY29tbWFuZCAtdiBweXRob24zID4vZGV2L251bGwgMj4mMTsgdGhlbgogICAgcHJpbnRmICclcycgIiRqc29uIiB8IHB5dGhvbjMgLWMgJ2ltcG9ydCBqc29uLHN5czsgZD1qc29uLmxvYWQoc3lzLnN0ZGluKTsgcHJpbnQoZC5nZXQoc3lzLmFyZ3ZbMV0sICIiKSknICIka2V5IgogIGVsc2UKICAgIHByaW50ZiAnJXMnICIkanNvbiIgfCBzZWQgLW4gInMvLipcIiRrZXlcIltbOnNwYWNlOl1dKjpbWzpzcGFjZTpdXSpcIlwoW15cIl0qXClcIi4qL1wxL3AiIHwgaGVhZCAtMQogIGZpCn0KCiMg5qOA5rWL5bmz5Y+w77yM6K6+572uIFRBUkdFVCDkuI4gRVhUCmRldGVjdF90YXJnZXQoKSB7CiAgb3M9JCh1bmFtZSAtcyk7IGFyY2g9JCh1bmFtZSAtbSkKICBjYXNlICIkb3MiIGluCiAgICBMaW51eCkKICAgICAgY2FzZSAiJGFyY2giIGluCiAgICAgICAgeDg2XzY0fGFtZDY0KSAgIFRBUkdFVD0ieDg2XzY0LXVua25vd24tbGludXgtbXVzbCIgOzsKICAgICAgICBhYXJjaDY0fGFybTY0KSAgVEFSR0VUPSJhYXJjaDY0LXVua25vd24tbGludXgtbXVzbCIgOzsKICAgICAgICBhcm12Nyp8YXJtdjYqKSAgVEFSR0VUPSJhcm12Ny11bmtub3duLWxpbnV4LW11c2xlYWJpaGYiIDs7CiAgICAgICAgKikgZmFpbCAi5LiN5pSv5oyB55qEIENQVSDmnrbmnoQ6ICRhcmNoIiA7OwogICAgICBlc2FjIDs7CiAgICBEYXJ3aW4pCiAgICAgIGNhc2UgIiRhcmNoIiBpbgogICAgICAgIHg4Nl82NCkgICAgICAgICBUQVJHRVQ9Ing4Nl82NC1hcHBsZS1kYXJ3aW4iIDs7CiAgICAgICAgYXJtNjR8YWFyY2g2NCkgIFRBUkdFVD0iYWFyY2g2NC1hcHBsZS1kYXJ3aW4iIDs7CiAgICAgICAgKikgZmFpbCAi5LiN5pSv5oyB55qEIENQVSDmnrbmnoQ6ICRhcmNoIiA7OwogICAgICBlc2FjIDs7CiAgICBNSU5HVyp8TVNZUyp8Q1lHV0lOKikKICAgICAgY2FzZSAiJGFyY2giIGluCiAgICAgICAgeDg2XzY0fGFtZDY0KSAgIFRBUkdFVD0ieDg2XzY0LXBjLXdpbmRvd3MtbXN2YyIgOzsKICAgICAgICAqKSBmYWlsICLkuI3mlK/mjIHnmoQgQ1BVIOaetuaehDogJGFyY2giIDs7CiAgICAgIGVzYWMgOzsKICAgICopIGZhaWwgIuS4jeaUr+aMgeeahOaTjeS9nOezu+e7nzogJG9zIiA7OwogIGVzYWMKICBjYXNlICIkVEFSR0VUIiBpbgogICAgKndpbmRvd3MqKSBFWFQ9InppcCIgOzsKICAgICopICAgICAgICAgRVhUPSJ0YXIuZ3oiIDs7CiAgZXNhYwogIHNheSAi55uu5qCH5bmz5Y+wOiAkVEFSR0VUICgkRVhUKSIKfQoKIyBBUEkg5Yqg6YCf5rqQ77ya5Li75rqQ5aSx6LSl5pe25L6d5qyh5bCd6K+V77yIZ2gtcHJveHkg5Zyo5Zu95YaF6YCa5bi45Y+v6L6+77yJCmFwaV9zb3VyY2VzKCkgewogIHByaW50ZiAnJXNcbicgXAogICAgIiRBUElfQkFTRSIgXAogICAgImh0dHBzOi8vZ2gtcHJveHkuY29tL2h0dHBzOi8vYXBpLmdpdGh1Yi5jb20iIFwKICAgICJodHRwczovL2docHJveHkubmV0L2h0dHBzOi8vYXBpLmdpdGh1Yi5jb20iCn0KCnJlc29sdmVfdmVyc2lvbigpIHsKICBbIC1uICIkVkVSU0lPTiIgXSAmJiByZXR1cm4gMAogIHNheSAi5q2j5Zyo5p+l6K+i5pyA5pawIFJlbGVhc2UgLi4uIgogIGdvdD0iIgogIHNyY19saXN0PSQoYXBpX3NvdXJjZXMpCiAgb2xkX2lmcz0kSUZTOyBJRlM9JwonCiAgZm9yIGJhc2UgaW4gJHNyY19saXN0OyBkbwogICAgSUZTPSRvbGRfaWZzCiAgICBbIC16ICIkYmFzZSIgXSAmJiBjb250aW51ZQogICAgaWYgbWV0YT0kKGh0dHBfZ2V0ICIkYmFzZS9yZXBvcy8kUkVQTy9yZWxlYXNlcy9sYXRlc3QiIDI+L2Rldi9udWxsKTsgdGhlbgogICAgICB2PSQoanNvbl9maWVsZCB0YWdfbmFtZSAiJG1ldGEiKQogICAgICBpZiBbIC1uICIkdiIgXTsgdGhlbiBnb3Q9IiR2IjsgYnJlYWs7IGZpCiAgICBmaQogICAgSUZTPScKJwogIGRvbmUKICBJRlM9JG9sZF9pZnMKICBpZiBbIC16ICIkZ290IiBdOyB0aGVuCiAgICBjYXQgPiYyIDw8RU9GCumUmeivrzog5p+l6K+i5LiN5Yiw5pyA5pawIFJlbGVhc2XjgIIKCui/memAmuW4uOaEj+WRs+edgOS7k+W6k+i/mOayoeacieWPkeW4g+S7u+S9leeJiOacrO+8iHJlbGVhc2VzL2xhdGVzdCDkvJrov5Tlm54gNDA077yJ77yMCuS5n+WPr+iDveaYr+e9kee7nOaXoOazleiuv+mXriBHaXRIdWIgQVBJ44CC5L2g5Y+v5Lul77yaCgogIDEpIOeUqOa6kOeggee8luivkeWuieijhe+8iOacrOacuumcgOaciSBSdXN077yJOgogICAgICAgc2ggaW5zdGFsbC5zaCAtLWZyb20tc291cmNlCiAgMikg56iN5ZCO6YeN6K+V77yI562J57u05oqk6ICFIGdpdCB0YWcg6Kem5Y+RIFJlbGVhc2Ugd29ya2Zsb3cg5a6M5oiQ77yJCiAgMykg6Ieq5qOA5a6a5L2N6Zeu6aKYOgogICAgICAgc2ggaW5zdGFsbC5zaCAtLWRvY3RvcgogIDQpIOaYvuW8j+aMh+WumueJiOacrDoKICAgICAgIHNoIGluc3RhbGwuc2ggLS12ZXJzaW9uIHYwLjEuMApFT0YKICAgIGV4aXQgMQogIGZpCiAgVkVSU0lPTj0iJGdvdCIKICBzYXkgIuacgOaWsOeJiOacrDogJFZFUlNJT04iCn0KCnZlcmlmeV9jaGVja3N1bSgpIHsKICBmaWxlPSIkMSI7IHN1bWZpbGU9IiQyIjsgZGlyPSQoZGlybmFtZSAiJGZpbGUiKTsgYmFzZT0kKGJhc2VuYW1lICIkZmlsZSIpOyBzYmFzZT0kKGJhc2VuYW1lICIkc3VtZmlsZSIpCiAgKCBjZCAiJGRpciIgJiYgXAogICAgaWYgY29tbWFuZCAtdiBzaGEyNTZzdW0gPi9kZXYvbnVsbCAyPiYxOyB0aGVuCiAgICAgIHNoYTI1NnN1bSAtYyAiJHNiYXNlIgogICAgZWxpZiBjb21tYW5kIC12IHNoYXN1bSA+L2Rldi9udWxsIDI+JjE7IHRoZW4KICAgICAgc2hhc3VtIC1hIDI1NiAtYyAiJHNiYXNlIgogICAgZWxpZiBjb21tYW5kIC12IG9wZW5zc2wgPi9kZXYvbnVsbCAyPiYxOyB0aGVuCiAgICAgIHdhbnQ9JChhd2sgJ3twcmludCAkMX0nICIkc2Jhc2UiKQogICAgICBnb3Q9JChvcGVuc3NsIGRnc3QgLXNoYTI1NiAiJGJhc2UiIHwgYXdrICd7cHJpbnQgJE5GfScpCiAgICAgIFsgIiR3YW50IiA9ICIkZ290IiBdIHx8IHJldHVybiAxCiAgICBlbHNlCiAgICAgIGVjaG8gIuayoeacieWPr+eUqOeahCBTSEEyNTYg5qCh6aqM5bel5YW3IiA+JjI7IHJldHVybiAxCiAgICBmaQogICkgfHwgZmFpbCAiU0hBMjU2IOagoemqjOWksei0pe+8jOWuieijheW3suS4reatoiIKICBzYXkgIlNIQTI1NiDmoKHpqozpgJrov4ciCn0KCmluc3RhbGxfYmluYXJ5KCkgewogIHNyYz0iJDEiCiAgbmVlZF9zdWRvCiAgJFNVRE8gbWtkaXIgLXAgIiRJTlNUQUxMX0RJUiIKICBbIC14ICIkc3JjIiBdIHx8IGNobW9kICt4ICIkc3JjIgogICMg5L+d55WZ5bmz5Y+w5ZCO57yA77yaV2luZG93cyDkuIsgc3JjIOaYryBtYXRyaXgtc2F0b3JpLmV4Ze+8jOebruagh+S5n+W/hemhu+W4piAuZXhlCiAgZGVzdD0iJElOU1RBTExfRElSLyQoYmFzZW5hbWUgIiRzcmMiKSIKICBpZiBjb21tYW5kIC12IGluc3RhbGwgPi9kZXYvbnVsbCAyPiYxOyB0aGVuCiAgICAkU1VETyBpbnN0YWxsIC1tIDA3NTUgIiRzcmMiICIkZGVzdCIKICBlbHNlCiAgICAkU1VETyBjcCAiJHNyYyIgIiRkZXN0IiAmJiAkU1VETyBjaG1vZCAwNzU1ICIkZGVzdCIKICBmaQogIEJJTl9QQVRIPSIkZGVzdCIKICBzYXkgIuW3suWuieijheS6jOi/m+WItjogJGRlc3QiCn0KCiMg5LiL6L295rqQ5Zue6YCA77ya5Li7IGRvd25sb2FkLWJhc2Ug5aSx6LSl5pe26K+VIGdoLXByb3h5IOWKoOmAn+a6kApkb3dubG9hZF9hc3NldCgpIHsKICAjICQxPeebuOWvuei3r+W+hCjlkKsgcmVsZWFzZXMvZG93bmxvYWQvLi4uKe+8jCQyPei+k+WHuuaWh+S7tgogIHJlbD0iJDEiOyBvdXQ9IiQyIjsgb2s9MAogIG9sZF9pZnM9JElGUzsgSUZTPScKJwogIGZvciBiYXNlIGluICIkRE9XTkxPQURfQkFTRSIgImh0dHBzOi8vZ2gtcHJveHkuY29tL2h0dHBzOi8vZ2l0aHViLmNvbSIgImh0dHBzOi8vZ2hmYXN0LnRvcC9odHRwczovL2dpdGh1Yi5jb20iOyBkbwogICAgSUZTPSRvbGRfaWZzCiAgICBbIC16ICIkYmFzZSIgXSAmJiBjb250aW51ZQogICAgaWYgaHR0cF9kb3dubG9hZCAiJHtiYXNlfS8ke3JlbH0iICIkb3V0IiAyPi9kZXYvbnVsbDsgdGhlbiBvaz0xOyBicmVhazsgZmkKICAgIElGUz0nCicKICBkb25lCiAgSUZTPSRvbGRfaWZzCiAgWyAiJG9rIiAtZXEgMSBdCn0KCmluc3RhbGxfZnJvbV9yZWxlYXNlKCkgewogIGRldGVjdF90YXJnZXQKICBBU1NFVD0iJHtCSU59XyR7VkVSU0lPTn1fJHtUQVJHRVR9LiR7RVhUfSIKICBSRUw9IiR7UkVQT30vcmVsZWFzZXMvZG93bmxvYWQvJHtWRVJTSU9OfS8ke0FTU0VUfSIKICBzYXkgIuS4i+i9vTogJERPV05MT0FEX0JBU0UvJFJFTCIKICBkb3dubG9hZF9hc3NldCAiJFJFTCIgIiRUTVAvJEFTU0VUIiB8fCBmYWlsICLkuIvovb3lpLHotKXvvIjlt7LlsJ3or5Xnm7Tov57kuI7lm73lhoXliqDpgJ/mupDvvInvvIzlj6/nlKggLS1kb2N0b3Ig6Ieq5qOA5oiWIC0tZnJvbS1zb3VyY2Ug57yW6K+RIgogIHNheSAi5LiL6L295qCh6aqM5paH5Lu2IC4uLiIKICBkb3dubG9hZF9hc3NldCAiJFJFTC5zaGEyNTYiICIkVE1QLyR7QVNTRVR9LnNoYTI1NiIgfHwgZmFpbCAi5LiL6L29IC5zaGEyNTYg5aSx6LSl77yI5bey5bCd6K+V5aSa5Liq5rqQ77yJIgogIHZlcmlmeV9jaGVja3N1bSAiJFRNUC8kQVNTRVQiICIkVE1QLyR7QVNTRVR9LnNoYTI1NiIKCiAgc2F5ICLop6PljosgLi4uIgogIG1rZGlyIC1wICIkVE1QL2V4dHJhY3QiCiAgaWYgWyAiJEVYVCIgPSAiemlwIiBdOyB0aGVuCiAgICBpZiBjb21tYW5kIC12IHVuemlwID4vZGV2L251bGwgMj4mMTsgdGhlbgogICAgICB1bnppcCAtcSAiJFRNUC8kQVNTRVQiIC1kICIkVE1QL2V4dHJhY3QiCiAgICBlbHNlCiAgICAgIHB5dGhvbjMgLWMgJ2ltcG9ydCB6aXBmaWxlLHN5czsgemlwZmlsZS5aaXBGaWxlKHN5cy5hcmd2WzFdKS5leHRyYWN0YWxsKHN5cy5hcmd2WzJdKScgIiRUTVAvJEFTU0VUIiAiJFRNUC9leHRyYWN0IgogICAgZmkKICBlbHNlCiAgICB0YXIgLXh6ZiAiJFRNUC8kQVNTRVQiIC1DICIkVE1QL2V4dHJhY3QiCiAgZmkKICBzcmM9JChmaW5kICIkVE1QL2V4dHJhY3QiIC10eXBlIGYgXCggLW5hbWUgIiRCSU4iIC1vIC1uYW1lICIkQklOLmV4ZSIgXCkgfCBoZWFkIC0xKQogIFsgLW4gIiRzcmMiIF0gfHwgZmFpbCAi6Kej5Y6L5ZCO5om+5LiN5Yiw5LqM6L+b5Yi2ICRCSU4iCiAgaW5zdGFsbF9iaW5hcnkgIiRzcmMiCn0KCmluc3RhbGxfZnJvbV9zb3VyY2UoKSB7CiAgY29tbWFuZCAtdiBjYXJnbyA+L2Rldi9udWxsIDI+JjEgfHwgZmFpbCAiLS1mcm9tLXNvdXJjZSDpnIDopoHmnKzmnLrlronoo4UgUnVzdCAoY2FyZ28pIgogIGNvbW1hbmQgLXYgZ2l0ID4vZGV2L251bGwgMj4mMSB8fCBmYWlsICItLWZyb20tc291cmNlIOmcgOimgSBnaXQiCiAgc2F5ICLku47mupDnoIHnvJbor5HvvIjlj6/og73pnIDopoHlh6DliIbpkp/vvIkuLi4iCiAgIyDlm73lhoXliqDpgJ/vvJrpobnnm67oh6rluKYgLmNhcmdvL2NvbmZpZy50b21sKHJzcHJveHkg5rqQKQogIGdpdCBjbG9uZSAtLWRlcHRoIDEgImh0dHBzOi8vZ2l0aHViLmNvbS8kUkVQTy5naXQiICIkVE1QL3NyYyIgfHwgewogICAgc2F5ICJnaXRodWIg55u06L+e5YWL6ZqG5aSx6LSl77yM5bCd6K+VIGdoLXByb3h5IOWKoOmAnyAuLi4iCiAgICBnaXQgY2xvbmUgLS1kZXB0aCAxICJodHRwczovL2doLXByb3h5LmNvbS9odHRwczovL2dpdGh1Yi5jb20vJFJFUE8uZ2l0IiAiJFRNUC9zcmMiIHx8IGZhaWwgImdpdCBjbG9uZSDlpLHotKUiCiAgfQogICMg6Iul6aG555uu5pyq5bim6ZWc5YOP6YWN572u5LiU5Zyo5Zu95YaF77yM5Y+v55SoIENBUkdPX1NPVVJDRSDnjq/looPlj5jph4/opobnm5bvvIjop4EgLS1kb2N0b3Ig5o+Q56S677yJCiAgY2FyZ28gYnVpbGQgLS1yZWxlYXNlIC0tbWFuaWZlc3QtcGF0aCAiJFRNUC9zcmMvQ2FyZ28udG9tbCIgfHwgZmFpbCAiY2FyZ28gYnVpbGQg5aSx6LSlIgogIGluc3RhbGxfYmluYXJ5ICIkVE1QL3NyYy90YXJnZXQvcmVsZWFzZS8kQklOIgp9CgpyYW5kb21fdG9rZW4oKSB7CiAgaWYgY29tbWFuZCAtdiBvcGVuc3NsID4vZGV2L251bGwgMj4mMTsgdGhlbgogICAgb3BlbnNzbCByYW5kIC1oZXggMjQKICBlbHNlCiAgICBvZCAtQW4gLXR4MSAtTjI0IC9kZXYvdXJhbmRvbSAyPi9kZXYvbnVsbCB8IHRyIC1kICcgXG4nCiAgZmkKfQoKd3JpdGVfY29uZmlnKCkgewogIFsgLW4gIiRTQVRPUklfVE9LRU4iIF0gfHwgU0FUT1JJX1RPS0VOPSQocmFuZG9tX3Rva2VuKQogIFsgLW4gIiRTQVRPUklfVE9LRU4iIF0gfHwgZmFpbCAi5peg5rOV55Sf5oiQ6ZqP5py65a+G6ZKl77yM6K+355SoIC0tdG9rZW4g5oyH5a6aIgogIG5lZWRfc3VkbwogICRTVURPIG1rZGlyIC1wICIkQ09ORklHX0RJUiIKICBFTlZfRklMRT0iJENPTkZJR19ESVIvbWF0cml4LXNhdG9yaS5lbnYiCiAgU1RBVEVfRElSPSIkQ09ORklHX0RJUi9kYXRhIgoKICBpZiBbIC1lICIkRU5WX0ZJTEUiIF07IHRoZW4KICAgIHNheSAi5L+d55WZ5bey5pyJ6YWN572uOiAkRU5WX0ZJTEUiCiAgICAjIOivu+WPluW3suaciSB0b2tlbu+8jOS+m+e7k+WwvuaPkOekuuS9v+eUqAogICAgb2xkPSQoc2VkIC1uICdzL15TQVRPUklfVE9LRU49Ly9wJyAiJEVOVl9GSUxFIiB8IGhlYWQgLTEpCiAgICBbIC1uICIkb2xkIiBdICYmIFNBVE9SSV9UT0tFTj0iJG9sZCIKICBlbHNlCiAgICBjYXQgPiAiJFRNUC9lbnYudG1wIiA8PEVPRgojIG1hdHJpeC1zYXRvcmkg6YWN572u77yI55SxIGluc3RhbGwuc2gg55Sf5oiQ77yM5Y+v5oyJ6ZyA5L+u5pS577yJCiMgTWF0cml4IGhvbWVzZXJ2ZXIg5LiO55m75b2V5pa55byPCk1BVFJJWF9IT01FU0VSVkVSPSRIT01FU0VSVkVSCk1BVFJJWF9MT0dJTl9NRVRIT0Q9JExPR0lOX01FVEhPRAoKIyDlr4bnoIHnmbvlvZXml7bloavlhpnkuIvpnaLkuKTpobk6CiMgTUFUUklYX1VTRVJOQU1FPQojIE1BVFJJWF9QQVNTV09SRD0KIyDlt7LmnIkgYWNjZXNzIHRva2VuIOeZu+W9leaXtuWhq+WGme+8iOeVmeepuuWImeaMieeZu+W9leaWueW8j+S6pOS6kuiOt+WPlu+8iToKIyBNQVRSSVhfQUNDRVNTX1RPS0VOPQojIFNTTyDnmbvlvZXnmoTmnKzlnLDlm57osIPlnLDlnYDvvIhTU08g5pe256iL5bqP5Lya5omT5Y2w55m75b2V6ZO+5o6l77yJOgpNQVRSSVhfU1NPX0NBTExCQUNLX0JJTkQ9MTI3LjAuMC4xOjgwODgKCiMgU2F0b3JpIOacjeWKoe+8iEtvaXNoaSDov57mjqXnlKjvvIkKU0FUT1JJX0JJTkQ9JFNBVE9SSV9CSU5EClNBVE9SSV9UT0tFTj0kU0FUT1JJX1RPS0VOCgojIOWHreaNrue8k+WtmOS4juWQjOatpeS9jeeCueebruW9lQpNQVRSSVhfU1RBVEVfRElSPSRTVEFURV9ESVIKUlVTVF9MT0c9aW5mbwpFT0YKICAgICRTVURPIGNwICIkVE1QL2Vudi50bXAiICIkRU5WX0ZJTEUiCiAgICAkU1VETyBjaG1vZCAwNjAwICIkRU5WX0ZJTEUiCiAgICBzYXkgIuW3sueUn+aIkOmFjee9rjogJEVOVl9GSUxFIgogIGZpCiAgJFNVRE8gbWtkaXIgLXAgIiRTVEFURV9ESVIiIDI+L2Rldi9udWxsIHx8IHRydWUKfQoKd3JpdGVfc3lzdGVtZCgpIHsKICBbICIkU1lTVEVNRCIgPSAieWVzIiBdIHx8IHJldHVybiAwCiAgaWYgISBjb21tYW5kIC12IHN5c3RlbWN0bCA+L2Rldi9udWxsIDI+JjE7IHRoZW4KICAgIHNheSAi5pyq5qOA5rWL5YiwIHN5c3RlbWN0bO+8jOi3s+i/hyBzeXN0ZW1kIOWNleWFgyIKICAgIHJldHVybiAwCiAgZmkKICBVTklUX1NSQz0iJENPTkZJR19ESVIvbWF0cml4LXNhdG9yaS5zZXJ2aWNlIgogIGNhdCA+ICIkVE1QL3VuaXQudG1wIiA8PEVPRgpbVW5pdF0KRGVzY3JpcHRpb249bWF0cml4LXNhdG9yaSAoTWF0cml4IC0+IFNhdG9yaSBicmlkZ2UgZm9yIEtvaXNoaSkKQWZ0ZXI9bmV0d29yay1vbmxpbmUudGFyZ2V0CldhbnRzPW5ldHdvcmstb25saW5lLnRhcmdldAoKW1NlcnZpY2VdClR5cGU9c2ltcGxlCkVudmlyb25tZW50RmlsZT0kRU5WX0ZJTEUKRXhlY1N0YXJ0PSRCSU5fUEFUSApSZXN0YXJ0PW9uLWZhaWx1cmUKUmVzdGFydFNlYz01CldvcmtpbmdEaXJlY3Rvcnk9JENPTkZJR19ESVIKCltJbnN0YWxsXQpXYW50ZWRCeT1tdWx0aS11c2VyLnRhcmdldApFT0YKICAkU1VETyBjcCAiJFRNUC91bml0LnRtcCIgIiRVTklUX1NSQyIKICBpZiBpc19yb290ICYmIFsgLWQgL2V0Yy9zeXN0ZW1kL3N5c3RlbSBdOyB0aGVuCiAgICAkU1VETyBjcCAiJFVOSVRfU1JDIiAvZXRjL3N5c3RlbWQvc3lzdGVtL21hdHJpeC1zYXRvcmkuc2VydmljZQogICAgc3lzdGVtY3RsIGRhZW1vbi1yZWxvYWQgPi9kZXYvbnVsbCAyPiYxIHx8IHRydWUKICAgIHNheSAi5bey5a6J6KOFIHN5c3RlbWQg5Y2V5YWDOiAvZXRjL3N5c3RlbWQvc3lzdGVtL21hdHJpeC1zYXRvcmkuc2VydmljZSIKICAgIHNheSAi5ZCv55So5bm25ZCv5YqoOiBzeXN0ZW1jdGwgZW5hYmxlIC0tbm93IG1hdHJpeC1zYXRvcmkiCiAgZWxzZQogICAgc2F5ICJzeXN0ZW1kIOWNleWFg+aooeadv+W3sueUn+aIkDogJFVOSVRfU1JDIgogICAgc2F5ICLlpoLpnIDlkK/nlKjvvIzlpI3liLbliLAgL2V0Yy9zeXN0ZW1kL3N5c3RlbS8g5ZCO5omn6KGMIHN5c3RlbWN0bCBkYWVtb24tcmVsb2FkICYmIHN5c3RlbWN0bCBlbmFibGUgLS1ub3cgbWF0cml4LXNhdG9yaSIKICBmaQp9Cgpkb191bmluc3RhbGwoKSB7CiAgbmVlZF9zdWRvCiAgaWYgY29tbWFuZCAtdiBzeXN0ZW1jdGwgPi9kZXYvbnVsbCAyPiYxOyB0aGVuCiAgICBzeXN0ZW1jdGwgZGlzYWJsZSAtLW5vdyBtYXRyaXgtc2F0b3JpID4vZGV2L251bGwgMj4mMSB8fCB0cnVlCiAgZmkKICAkU1VETyBybSAtZiAvZXRjL3N5c3RlbWQvc3lzdGVtL21hdHJpeC1zYXRvcmkuc2VydmljZSAyPi9kZXYvbnVsbCB8fCB0cnVlCiAgY29tbWFuZCAtdiBzeXN0ZW1jdGwgPi9kZXYvbnVsbCAyPiYxICYmIHN5c3RlbWN0bCBkYWVtb24tcmVsb2FkID4vZGV2L251bGwgMj4mMSB8fCB0cnVlCiAgJFNVRE8gcm0gLWYgIiRJTlNUQUxMX0RJUi8kQklOIiAiJElOU1RBTExfRElSLyRCSU4uZXhlIiAyPi9kZXYvbnVsbCB8fCB0cnVlCiAgJFNVRE8gcm0gLWYgIiRDT05GSUdfRElSL21hdHJpeC1zYXRvcmkuc2VydmljZSIgMj4vZGV2L251bGwgfHwgdHJ1ZQogIHNheSAi5bey5Y246L29ICRJTlNUQUxMX0RJUi8kQklOIOS4jiBzeXN0ZW1kIOWNleWFgyIKICBzYXkgIumFjee9ruS4juaVsOaNruebruW9lSAkQ09ORklHX0RJUiDlt7Lkv53nlZnvvIjlpoLpnIDliKDpmaTor7fmiYvliqggcm0gLXJm77yJIgp9CgojIOiHquajgO+8muWPquiviuaWreS4jeWuieijhQpkb19kb2N0b3IoKSB7CiAgc2F5ICI9PT0gbWF0cml4LXNhdG9yaSDnjq/looPoh6rmo4AgPT09IgogIHNheSAiIgogIHNheSAiWzEvNF0g5b+F6ZyA5bel5YW3IgogIGZvciB0IGluIGN1cmwgc2ggdGFyOyBkbwogICAgaWYgY29tbWFuZCAtdiAiJHQiID4vZGV2L251bGwgMj4mMTsgdGhlbiBzYXkgIiAgT0sgICR0IjsgZWxzZSBzYXkgIiAg57y65aSxICR0IjsgZmkKICBkb25lCiAgZm9yIHQgaW4gd2dldCB1bnppcCBweXRob24zIHNoYTI1NnN1bSBzaGFzdW0gb3BlbnNzbCBjYXJnbyBnaXQ7IGRvCiAgICBpZiBjb21tYW5kIC12ICIkdCIgPi9kZXYvbnVsbCAyPiYxOyB0aGVuIHNheSAiICBPSyAgJHQgKCQoY29tbWFuZCAtdiAiJHQiKSkiOyBlbHNlIHNheSAiICAtLSAgJHQgKOacquWuieijhe+8jOmdnuW/hemcgCkiOyBmaQogIGRvbmUKICBzYXkgIiIKICBzYXkgIlsyLzRdIOW5s+WPsOivhuWIqyIKICBkZXRlY3RfdGFyZ2V0IDI+L2Rldi9udWxsIHx8IHNheSAiICDmnKrog73or4bliKvlvZPliY3lubPlj7AiCiAgc2F5ICIiCiAgc2F5ICJbMy80XSDku5PlupMgUmVsZWFzZSDnirbmgIEiCiAgZm91bmQ9MAogIG9sZF9pZnM9JElGUzsgSUZTPScKJwogIGZvciBiYXNlIGluICQoYXBpX3NvdXJjZXMpOyBkbwogICAgSUZTPSRvbGRfaWZzCiAgICBbIC16ICIkYmFzZSIgXSAmJiBjb250aW51ZQogICAgaWYgbWV0YT0kKGh0dHBfZ2V0ICIkYmFzZS9yZXBvcy8kUkVQTy9yZWxlYXNlcy9sYXRlc3QiIDI+L2Rldi9udWxsKTsgdGhlbgogICAgICB2PSQoanNvbl9maWVsZCB0YWdfbmFtZSAiJG1ldGEiKQogICAgICBpZiBbIC1uICIkdiIgXTsgdGhlbgogICAgICAgIHNheSAiICDmnIDmlrAgUmVsZWFzZTogJHYgICh2aWEgJGJhc2UpIgogICAgICAgIGNvdW50PSQocHJpbnRmICclcycgIiRtZXRhIiB8IHRyICcsJyAnXG4nIHwgZ3JlcCAtYyAnIm5hbWUiJyB8fCB0cnVlKQogICAgICAgIHNheSAiICDotYTkuqfmlbDph48o57KX55WlKTogJGNvdW50IgogICAgICAgIGZvdW5kPTE7IGJyZWFrCiAgICAgIGZpCiAgICBmaQogICAgSUZTPScKJwogIGRvbmUKICBJRlM9JG9sZF9pZnMKICBpZiBbICIkZm91bmQiIC1lcSAwIF07IHRoZW4KICAgIHNheSAiICDmnKrmib7liLAgUmVsZWFzZSDigJTigJQg5LuT5bqT5Y+v6IO96L+Y5rKh5Y+R54mI77yM6K+355SoIC0tZnJvbS1zb3VyY2Ug57yW6K+R5a6J6KOFIgogIGZpCiAgc2F5ICIiCiAgc2F5ICJbNC80XSDkuIvovb3mupDov57pgJrmgKfvvIhyZWxlYXNlIOi1hOS6p+WfuuWdgO+8iSIKICBmb3IgYmFzZSBpbiAiJERPV05MT0FEX0JBU0UiICJodHRwczovL2doLXByb3h5LmNvbS9odHRwczovL2dpdGh1Yi5jb20iICJodHRwczovL2doZmFzdC50b3AvaHR0cHM6Ly9naXRodWIuY29tIjsgZG8KICAgIGNvZGU9JChjdXJsIC1zIC1vIC9kZXYvbnVsbCAtdyAnJXtodHRwX2NvZGV9JyAtLW1heC10aW1lIDEyICIkYmFzZS9GTFkxOTE5L21hdHJpeC1zYXRvcmkiIDI+L2Rldi9udWxsIHx8IGVjaG8gIjAwMCIpCiAgICBjYXNlICIkY29kZSIgaW4KICAgICAgMjAwfDMwMXwzMDJ8NDA0KSBzYXkgIiAgT0sgICRjb2RlICAkYmFzZSIgOzsKICAgICAgKikgc2F5ICIgIEZBSUwgJGNvZGUgICRiYXNlIiA7OwogICAgZXNhYwogIGRvbmUKICBzYXkgIiIKICBzYXkgIuiviuaWreWujOaIkOOAguiLpSBSZWxlYXNlIOeKtuaAgeS4uifmnKrmib7liLAn77yM5YWI562J57u05oqk6ICF5Y+R54mI77yM5oiW55SoIC0tZnJvbS1zb3VyY2XjgIIiCn0KCm1haW4oKSB7CiAgaWYgWyAteiAiJElOU1RBTExfRElSIiBdOyB0aGVuCiAgICBpZiBpc19yb290OyB0aGVuIElOU1RBTExfRElSPSIvdXNyL2xvY2FsL2JpbiI7IGVsc2UgSU5TVEFMTF9ESVI9IiRIT01FLy5sb2NhbC9iaW4iOyBmaQogIGZpCiAgaWYgWyAteiAiJENPTkZJR19ESVIiIF07IHRoZW4KICAgIGlmIGlzX3Jvb3Q7IHRoZW4gQ09ORklHX0RJUj0iL2V0Yy9tYXRyaXgtc2F0b3JpIjsgZWxzZSBDT05GSUdfRElSPSIke1hER19DT05GSUdfSE9NRTotJEhPTUUvLmNvbmZpZ30vbWF0cml4LXNhdG9yaSI7IGZpCiAgZmkKICBUTVA9JChta3RlbXAgLWQpCiAgdHJhcCAncm0gLXJmICIkVE1QIicgRVhJVCBIVVAgSU5UIFRFUk0KCiAgaWYgWyAiJFVOSU5TVEFMTCIgLWVxIDEgXTsgdGhlbgogICAgZG9fdW5pbnN0YWxsCiAgICByZXR1cm4gMAogIGZpCgogIGlmIFsgIiRET0NUT1IiIC1lcSAxIF07IHRoZW4KICAgIGRvX2RvY3RvcgogICAgcmV0dXJuIDAKICBmaQoKICBpZiBbICIkU1lTVEVNRCIgPSAiYXV0byIgXTsgdGhlbgogICAgaWYgaXNfcm9vdCAmJiBjb21tYW5kIC12IHN5c3RlbWN0bCA+L2Rldi9udWxsIDI+JjE7IHRoZW4gU1lTVEVNRD15ZXM7IGVsc2UgU1lTVEVNRD1ubzsgZmkKICBmaQoKICBpZiBbICIkRlJPTV9TT1VSQ0UiIC1lcSAxIF07IHRoZW4KICAgIGluc3RhbGxfZnJvbV9zb3VyY2UKICBlbHNlCiAgICByZXNvbHZlX3ZlcnNpb24KICAgIGluc3RhbGxfZnJvbV9yZWxlYXNlCiAgZmkKCiAgd3JpdGVfY29uZmlnCiAgd3JpdGVfc3lzdGVtZAoKICBzYXkgIiIKICBzYXkgIuWuieijheWujOaIkCEiCiAgc2F5ICIgIOS6jOi/m+WItjogICAkQklOX1BBVEgiCiAgc2F5ICIgIOmFjee9rjogICAgICRDT05GSUdfRElSL21hdHJpeC1zYXRvcmkuZW52IgogIHNheSAiICDmlbDmja7nm67lvZU6ICRDT05GSUdfRElSL2RhdGEiCiAgc2F5ICIgIEtvaXNoaTogICBhZGFwdGVyLXNhdG9yaSDnmoQgZW5kcG9pbnQg5aGrICRTQVRPUklfQklORCDlr7nlupTnmoTlnLDlnYDvvIx0b2tlbiDloas6ICRTQVRPUklfVE9LRU4iCiAgaWYgWyAiJFNZU1RFTUQiID0gInllcyIgXTsgdGhlbgogICAgc2F5ICIgIOWQr+WKqDogICAgIHN5c3RlbWN0bCBlbmFibGUgLS1ub3cgbWF0cml4LXNhdG9yaSIKICBlbHNlCiAgICBzYXkgIiAg5ZCv5YqoOiAgICAgJEJJTl9QQVRIICAgKOS8muiHquWKqOivu+WPliAkQ09ORklHX0RJUi9tYXRyaXgtc2F0b3JpLmVudikiCiAgZmkKfQoKbWFpbiAiJEAiCg==
+#!/usr/bin/env sh
+# matrix-satori 一键安装脚本
+# 从 GitHub Releases 下载预编译二进制并安装，自动生成配置模板与 systemd 单元。
+#
+# 用法示例:
+#   curl -fsSL https://raw.githubusercontent.com/FLY1919/matrix-satori/main/install.sh | sh
+#   sh install.sh --version v0.1.0 --install-dir ~/.local/bin --no-systemd
+#   sh install.sh --from-source          # 本机有 Rust 时从源码编译
+#   sh install.sh --uninstall            # 卸载
+set -eu
+
+BIN="matrix-satori"
+REPO="FLY1919/matrix-satori"
+API_BASE="https://api.github.com"
+DOWNLOAD_BASE="https://github.com"
+VERSION=""
+INSTALL_DIR=""
+CONFIG_DIR=""
+SYSTEMD="auto"          # auto | yes | no
+FROM_SOURCE=0
+UNINSTALL=0
+ASSUME_YES=0
+DOCTOR=0
+HOMESERVER="https://mozilla.modular.im"
+LOGIN_METHOD="sso"
+SATORI_BIND="127.0.0.1:5140"
+SATORI_TOKEN=""
+
+say()  { printf '%s\n' "$*"; }
+fail() { printf '错误: %s\n' "$*" >&2; exit 1; }
+
+usage() {
+  cat <<EOF
+matrix-satori 一键安装
+
+用法: sh install.sh [选项]
+
+选项:
+  -v, --version VER       指定版本 tag，默认自动取最新 Release
+      --install-dir DIR   二进制安装目录 (默认: root=/usr/local/bin, 否则 ~/.local/bin)
+      --config-dir DIR    配置目录 (默认: root=/etc/matrix-satori, 否则 ~/.config/matrix-satori)
+      --systemd           强制生成并安装 systemd 单元
+      --no-systemd        不生成 systemd 单元
+      --homeserver URL    Matrix homeserver (默认 $HOMESERVER)
+      --login-method M    auto/password/token/sso/applicationservice/accesstoken (默认 $LOGIN_METHOD)
+      --bind ADDR         Satori 监听地址 (默认 $SATORI_BIND)
+      --token TOKEN       Satori 共享密钥 (默认随机生成)
+  -y, --yes               跳过交互提示
+      --from-source       忽略 Release，直接用 cargo 从源码编译
+      --uninstall         卸载已安装的二进制与 systemd 单元
+      --repo OWNER/NAME   仓库 (默认 $REPO)
+      --api-base URL      GitHub API 地址 (默认 $API_BASE)
+      --download-base URL Release 下载基址 (默认 $DOWNLOAD_BASE)
+      --doctor            自检：工具/平台/仓库 Release 状态/镜像连通性，不安装
+  -h, --help              显示本帮助
+EOF
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -v|--version)       VERSION="${2:?--version 需要值}"; shift 2 ;;
+    --install-dir)      INSTALL_DIR="${2:?--install-dir 需要值}"; shift 2 ;;
+    --config-dir)       CONFIG_DIR="${2:?--config-dir 需要值}"; shift 2 ;;
+    --systemd)          SYSTEMD=yes; shift ;;
+    --no-systemd)       SYSTEMD=no; shift ;;
+    --homeserver)       HOMESERVER="${2:?--homeserver 需要值}"; shift 2 ;;
+    --login-method)     LOGIN_METHOD="${2:?--login-method 需要值}"; shift 2 ;;
+    --bind)             SATORI_BIND="${2:?--bind 需要值}"; shift 2 ;;
+    --token)            SATORI_TOKEN="${2:?--token 需要值}"; shift 2 ;;
+    -y|--yes)           ASSUME_YES=1; shift ;;
+    --from-source)      FROM_SOURCE=1; shift ;;
+    --uninstall)        UNINSTALL=1; shift ;;
+    --repo)             REPO="${2:?--repo 需要值}"; shift 2 ;;
+    --api-base)         API_BASE="${2:?--api-base 需要值}"; shift 2 ;;
+    --download-base)    DOWNLOAD_BASE="${2:?--download-base 需要值}"; shift 2 ;;
+    --doctor)           DOCTOR=1; shift ;;
+    -h|--help)          usage; exit 0 ;;
+    *) fail "未知参数: $1 (用 --help 查看用法)" ;;
+  esac
+done
+
+is_root() { [ "$(id -u)" = "0" ]; }
+
+SUDO=""
+need_sudo() {
+  [ -n "$SUDO" ] && return 0
+  is_root && return 0
+  command -v sudo >/dev/null 2>&1 && SUDO="sudo"
+  return 0
+}
+
+http_get() {
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "$1"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -qO- "$1"
+  else
+    fail "需要 curl 或 wget"
+  fi
+}
+
+http_download() {
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL -o "$2" "$1"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q -O "$2" "$1"
+  else
+    fail "需要 curl 或 wget"
+  fi
+}
+
+json_field() {
+  key="$1"; json="$2"
+  if command -v python3 >/dev/null 2>&1; then
+    printf '%s' "$json" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get(sys.argv[1], ""))' "$key"
+  else
+    printf '%s' "$json" | sed -n "s/.*\"$key\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" | head -1
+  fi
+}
+
+# 检测平台，设置 TARGET 与 EXT
+detect_target() {
+  os=$(uname -s); arch=$(uname -m)
+  case "$os" in
+    Linux)
+      case "$arch" in
+        x86_64|amd64)   TARGET="x86_64-unknown-linux-musl" ;;
+        aarch64|arm64)  TARGET="aarch64-unknown-linux-musl" ;;
+        armv7*|armv6*)  TARGET="armv7-unknown-linux-musleabihf" ;;
+        *) fail "不支持的 CPU 架构: $arch" ;;
+      esac ;;
+    Darwin)
+      case "$arch" in
+        x86_64)         TARGET="x86_64-apple-darwin" ;;
+        arm64|aarch64)  TARGET="aarch64-apple-darwin" ;;
+        *) fail "不支持的 CPU 架构: $arch" ;;
+      esac ;;
+    MINGW*|MSYS*|CYGWIN*)
+      case "$arch" in
+        x86_64|amd64)   TARGET="x86_64-pc-windows-msvc" ;;
+        *) fail "不支持的 CPU 架构: $arch" ;;
+      esac ;;
+    *) fail "不支持的操作系统: $os" ;;
+  esac
+  case "$TARGET" in
+    *windows*) EXT="zip" ;;
+    *)         EXT="tar.gz" ;;
+  esac
+  say "目标平台: $TARGET ($EXT)"
+}
+
+# API 加速源：主源失败时依次尝试（gh-proxy 在国内通常可达）
+api_sources() {
+  printf '%s\n' \
+    "$API_BASE" \
+    "https://gh-proxy.com/https://api.github.com" \
+    "https://ghproxy.net/https://api.github.com"
+}
+
+resolve_version() {
+  [ -n "$VERSION" ] && return 0
+  say "正在查询最新 Release ..."
+  got=""
+  src_list=$(api_sources)
+  old_ifs=$IFS; IFS='
+'
+  for base in $src_list; do
+    IFS=$old_ifs
+    [ -z "$base" ] && continue
+    if meta=$(http_get "$base/repos/$REPO/releases/latest" 2>/dev/null); then
+      v=$(json_field tag_name "$meta")
+      if [ -n "$v" ]; then got="$v"; break; fi
+    fi
+    IFS='
+'
+  done
+  IFS=$old_ifs
+  if [ -z "$got" ]; then
+    cat >&2 <<EOF
+错误: 查询不到最新 Release。
+
+这通常意味着仓库还没有发布任何版本（releases/latest 会返回 404），
+也可能是网络无法访问 GitHub API。你可以：
+
+  1) 用源码编译安装（本机需有 Rust）:
+       sh install.sh --from-source
+  2) 稍后重试（等维护者 git tag 触发 Release workflow 完成）
+  3) 自检定位问题:
+       sh install.sh --doctor
+  4) 显式指定版本:
+       sh install.sh --version v0.1.0
+EOF
+    exit 1
+  fi
+  VERSION="$got"
+  say "最新版本: $VERSION"
+}
+
+verify_checksum() {
+  file="$1"; sumfile="$2"; dir=$(dirname "$file"); base=$(basename "$file"); sbase=$(basename "$sumfile")
+  ( cd "$dir" && \
+    if command -v sha256sum >/dev/null 2>&1; then
+      sha256sum -c "$sbase"
+    elif command -v shasum >/dev/null 2>&1; then
+      shasum -a 256 -c "$sbase"
+    elif command -v openssl >/dev/null 2>&1; then
+      want=$(awk '{print $1}' "$sbase")
+      got=$(openssl dgst -sha256 "$base" | awk '{print $NF}')
+      [ "$want" = "$got" ] || return 1
+    else
+      echo "没有可用的 SHA256 校验工具" >&2; return 1
+    fi
+  ) || fail "SHA256 校验失败，安装已中止"
+  say "SHA256 校验通过"
+}
+
+install_binary() {
+  src="$1"
+  need_sudo
+  $SUDO mkdir -p "$INSTALL_DIR"
+  [ -x "$src" ] || chmod +x "$src"
+  # 保留平台后缀：Windows 下 src 是 matrix-satori.exe，目标也必须带 .exe
+  dest="$INSTALL_DIR/$(basename "$src")"
+  if command -v install >/dev/null 2>&1; then
+    $SUDO install -m 0755 "$src" "$dest"
+  else
+    $SUDO cp "$src" "$dest" && $SUDO chmod 0755 "$dest"
+  fi
+  BIN_PATH="$dest"
+  say "已安装二进制: $dest"
+}
+
+# 下载源回退：主 download-base 失败时试 gh-proxy 加速源
+download_asset() {
+  # $1=相对路径(含 releases/download/...)，$2=输出文件
+  rel="$1"; out="$2"; ok=0
+  old_ifs=$IFS; IFS='
+'
+  for base in "$DOWNLOAD_BASE" "https://gh-proxy.com/https://github.com" "https://ghfast.top/https://github.com"; do
+    IFS=$old_ifs
+    [ -z "$base" ] && continue
+    if http_download "${base}/${rel}" "$out" 2>/dev/null; then ok=1; break; fi
+    IFS='
+'
+  done
+  IFS=$old_ifs
+  [ "$ok" -eq 1 ]
+}
+
+install_from_release() {
+  detect_target
+  ASSET="${BIN}_${VERSION}_${TARGET}.${EXT}"
+  REL="${REPO}/releases/download/${VERSION}/${ASSET}"
+  say "下载: $DOWNLOAD_BASE/$REL"
+  download_asset "$REL" "$TMP/$ASSET" || fail "下载失败（已尝试直连与国内加速源），可用 --doctor 自检或 --from-source 编译"
+  say "下载校验文件 ..."
+  download_asset "$REL.sha256" "$TMP/${ASSET}.sha256" || fail "下载 .sha256 失败（已尝试多个源）"
+  verify_checksum "$TMP/$ASSET" "$TMP/${ASSET}.sha256"
+
+  say "解压 ..."
+  mkdir -p "$TMP/extract"
+  if [ "$EXT" = "zip" ]; then
+    if command -v unzip >/dev/null 2>&1; then
+      unzip -q "$TMP/$ASSET" -d "$TMP/extract"
+    else
+      python3 -c 'import zipfile,sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])' "$TMP/$ASSET" "$TMP/extract"
+    fi
+  else
+    tar -xzf "$TMP/$ASSET" -C "$TMP/extract"
+  fi
+  src=$(find "$TMP/extract" -type f \( -name "$BIN" -o -name "$BIN.exe" \) | head -1)
+  [ -n "$src" ] || fail "解压后找不到二进制 $BIN"
+  install_binary "$src"
+}
+
+install_from_source() {
+  command -v cargo >/dev/null 2>&1 || fail "--from-source 需要本机安装 Rust (cargo)"
+  command -v git >/dev/null 2>&1 || fail "--from-source 需要 git"
+  say "从源码编译（可能需要几分钟）..."
+  # 国内加速：项目自带 .cargo/config.toml(rsproxy 源)
+  git clone --depth 1 "https://github.com/$REPO.git" "$TMP/src" || {
+    say "github 直连克隆失败，尝试 gh-proxy 加速 ..."
+    git clone --depth 1 "https://gh-proxy.com/https://github.com/$REPO.git" "$TMP/src" || fail "git clone 失败"
+  }
+  # 若项目未带镜像配置且在国内，可用 CARGO_SOURCE 环境变量覆盖（见 --doctor 提示）
+  cargo build --release --manifest-path "$TMP/src/Cargo.toml" || fail "cargo build 失败"
+  install_binary "$TMP/src/target/release/$BIN"
+}
+
+random_token() {
+  if command -v openssl >/dev/null 2>&1; then
+    openssl rand -hex 24
+  else
+    od -An -tx1 -N24 /dev/urandom 2>/dev/null | tr -d ' \n'
+  fi
+}
+
+write_config() {
+  [ -n "$SATORI_TOKEN" ] || SATORI_TOKEN=$(random_token)
+  [ -n "$SATORI_TOKEN" ] || fail "无法生成随机密钥，请用 --token 指定"
+  need_sudo
+  $SUDO mkdir -p "$CONFIG_DIR"
+  ENV_FILE="$CONFIG_DIR/matrix-satori.env"
+  STATE_DIR="$CONFIG_DIR/data"
+
+  if [ -e "$ENV_FILE" ]; then
+    say "保留已有配置: $ENV_FILE"
+    # 读取已有 token，供结尾提示使用
+    old=$(sed -n 's/^SATORI_TOKEN=//p' "$ENV_FILE" | head -1)
+    [ -n "$old" ] && SATORI_TOKEN="$old"
+  else
+    cat > "$TMP/env.tmp" <<EOF
+# matrix-satori 配置（由 install.sh 生成，可按需修改）
+# Matrix homeserver 与登录方式
+MATRIX_HOMESERVER=$HOMESERVER
+MATRIX_LOGIN_METHOD=$LOGIN_METHOD
+
+# 密码登录时填写下面两项:
+# MATRIX_USERNAME=
+# MATRIX_PASSWORD=
+# 已有 access token 登录时填写（留空则按登录方式交互获取）:
+# MATRIX_ACCESS_TOKEN=
+# SSO 登录的本地回调地址（SSO 时程序会打印登录链接）:
+MATRIX_SSO_CALLBACK_BIND=127.0.0.1:8088
+
+# Satori 服务（Koishi 连接用）
+SATORI_BIND=$SATORI_BIND
+SATORI_TOKEN=$SATORI_TOKEN
+
+# 凭据缓存与同步位点目录
+MATRIX_STATE_DIR=$STATE_DIR
+RUST_LOG=info
+EOF
+    $SUDO cp "$TMP/env.tmp" "$ENV_FILE"
+    $SUDO chmod 0600 "$ENV_FILE"
+    say "已生成配置: $ENV_FILE"
+  fi
+  $SUDO mkdir -p "$STATE_DIR" 2>/dev/null || true
+}
+
+write_systemd() {
+  [ "$SYSTEMD" = "yes" ] || return 0
+  if ! command -v systemctl >/dev/null 2>&1; then
+    say "未检测到 systemctl，跳过 systemd 单元"
+    return 0
+  fi
+  UNIT_SRC="$CONFIG_DIR/matrix-satori.service"
+  cat > "$TMP/unit.tmp" <<EOF
+[Unit]
+Description=matrix-satori (Matrix -> Satori bridge for Koishi)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=$ENV_FILE
+ExecStart=$BIN_PATH
+Restart=on-failure
+RestartSec=5
+WorkingDirectory=$CONFIG_DIR
+
+[Install]
+WantedBy=multi-user.target
+EOF
+  $SUDO cp "$TMP/unit.tmp" "$UNIT_SRC"
+  if is_root && [ -d /etc/systemd/system ]; then
+    $SUDO cp "$UNIT_SRC" /etc/systemd/system/matrix-satori.service
+    systemctl daemon-reload >/dev/null 2>&1 || true
+    say "已安装 systemd 单元: /etc/systemd/system/matrix-satori.service"
+    say "启用并启动: systemctl enable --now matrix-satori"
+  else
+    say "systemd 单元模板已生成: $UNIT_SRC"
+    say "如需启用，复制到 /etc/systemd/system/ 后执行 systemctl daemon-reload && systemctl enable --now matrix-satori"
+  fi
+}
+
+do_uninstall() {
+  need_sudo
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl disable --now matrix-satori >/dev/null 2>&1 || true
+  fi
+  $SUDO rm -f /etc/systemd/system/matrix-satori.service 2>/dev/null || true
+  command -v systemctl >/dev/null 2>&1 && systemctl daemon-reload >/dev/null 2>&1 || true
+  $SUDO rm -f "$INSTALL_DIR/$BIN" "$INSTALL_DIR/$BIN.exe" 2>/dev/null || true
+  $SUDO rm -f "$CONFIG_DIR/matrix-satori.service" 2>/dev/null || true
+  say "已卸载 $INSTALL_DIR/$BIN 与 systemd 单元"
+  say "配置与数据目录 $CONFIG_DIR 已保留（如需删除请手动 rm -rf）"
+}
+
+# 自检：只诊断不安装
+do_doctor() {
+  say "=== matrix-satori 环境自检 ==="
+  say ""
+  say "[1/4] 必需工具"
+  for t in curl sh tar; do
+    if command -v "$t" >/dev/null 2>&1; then say "  OK  $t"; else say "  缺失 $t"; fi
+  done
+  for t in wget unzip python3 sha256sum shasum openssl cargo git; do
+    if command -v "$t" >/dev/null 2>&1; then say "  OK  $t ($(command -v "$t"))"; else say "  --  $t (未安装，非必需)"; fi
+  done
+  say ""
+  say "[2/4] 平台识别"
+  detect_target 2>/dev/null || say "  未能识别当前平台"
+  say ""
+  say "[3/4] 仓库 Release 状态"
+  found=0
+  old_ifs=$IFS; IFS='
+'
+  for base in $(api_sources); do
+    IFS=$old_ifs
+    [ -z "$base" ] && continue
+    if meta=$(http_get "$base/repos/$REPO/releases/latest" 2>/dev/null); then
+      v=$(json_field tag_name "$meta")
+      if [ -n "$v" ]; then
+        say "  最新 Release: $v  (via $base)"
+        count=$(printf '%s' "$meta" | tr ',' '\n' | grep -c '"name"' || true)
+        say "  资产数量(粗略): $count"
+        found=1; break
+      fi
+    fi
+    IFS='
+'
+  done
+  IFS=$old_ifs
+  if [ "$found" -eq 0 ]; then
+    say "  未找到 Release —— 仓库可能还没发版，请用 --from-source 编译安装"
+  fi
+  say ""
+  say "[4/4] 下载源连通性（release 资产基址）"
+  for base in "$DOWNLOAD_BASE" "https://gh-proxy.com/https://github.com" "https://ghfast.top/https://github.com"; do
+    code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 12 "$base/FLY1919/matrix-satori" 2>/dev/null || echo "000")
+    case "$code" in
+      200|301|302|404) say "  OK  $code  $base" ;;
+      *) say "  FAIL $code  $base" ;;
+    esac
+  done
+  say ""
+  say "诊断完成。若 Release 状态为'未找到'，先等维护者发版，或用 --from-source。"
+}
+
+main() {
+  if [ -z "$INSTALL_DIR" ]; then
+    if is_root; then INSTALL_DIR="/usr/local/bin"; else INSTALL_DIR="$HOME/.local/bin"; fi
+  fi
+  if [ -z "$CONFIG_DIR" ]; then
+    if is_root; then CONFIG_DIR="/etc/matrix-satori"; else CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/matrix-satori"; fi
+  fi
+  TMP=$(mktemp -d)
+  trap 'rm -rf "$TMP"' EXIT HUP INT TERM
+
+  if [ "$UNINSTALL" -eq 1 ]; then
+    do_uninstall
+    return 0
+  fi
+
+  if [ "$DOCTOR" -eq 1 ]; then
+    do_doctor
+    return 0
+  fi
+
+  if [ "$SYSTEMD" = "auto" ]; then
+    if is_root && command -v systemctl >/dev/null 2>&1; then SYSTEMD=yes; else SYSTEMD=no; fi
+  fi
+
+  if [ "$FROM_SOURCE" -eq 1 ]; then
+    install_from_source
+  else
+    resolve_version
+    install_from_release
+  fi
+
+  write_config
+  write_systemd
+
+  say ""
+  say "安装完成!"
+  say "  二进制:   $BIN_PATH"
+  say "  配置:     $CONFIG_DIR/matrix-satori.env"
+  say "  数据目录: $CONFIG_DIR/data"
+  say "  Koishi:   adapter-satori 的 endpoint 填 $SATORI_BIND 对应的地址，token 填: $SATORI_TOKEN"
+  if [ "$SYSTEMD" = "yes" ]; then
+    say "  启动:     systemctl enable --now matrix-satori"
+  else
+    say "  启动:     $BIN_PATH   (会自动读取 $CONFIG_DIR/matrix-satori.env)"
+  fi
+}
+
+main "$@"

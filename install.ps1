@@ -1,1 +1,259 @@
-PCMKLlNZTk9QU0lTCiAgICBtYXRyaXgtc2F0b3JpIOS4gOmUruWuieijhe+8iFdpbmRvd3Mg5Y6f55SfIFBvd2VyU2hlbGzvvIzml6DpnIAgR2l0IEJhc2ggLyBzaO+8iQoKLkRFU0NSSVBUSU9OCiAgICDku44gR2l0SHViIFJlbGVhc2VzIOS4i+i9vSBXaW5kb3dzIOmihOe8luivkeWMhe+8jOagoemqjCBTSEEyNTbvvIzop6Pljovlronoo4XvvIwKICAgIOeUn+aIkOmFjee9ruaooeadv+WSjOS4gOS4quivu+WPlumFjee9ruWQjuWQr+WKqOeahOiEmuacrOOAguaUr+aMgea6kOeggee8luivkeWbnumAgOS4juWNuOi9veOAggoKLkVYQU1QTEUKICAgIGl3ciBodHRwczovL2Nkbi5qc2RlbGl2ci5uZXQvZ2gvRkxZMTkxOS9tYXRyaXgtc2F0b3JpQG1haW4vaW5zdGFsbC5wczEgLU91dEZpbGUgaW5zdGFsbC5wczEKICAgIHBvd2Vyc2hlbGwgLUV4ZWN1dGlvblBvbGljeSBCeXBhc3MgLUZpbGUgLlxpbnN0YWxsLnBzMQoKLkVYQU1QTEUKICAgIC5caW5zdGFsbC5wczEgLVZlcnNpb24gdjAuMS4wIC1JbnN0YWxsRGlyIEM6XFRvb2xzXG1hdHJpeC1zYXRvcmkgLUxvZ2luTWV0aG9kIHBhc3N3b3JkCiAgICAuXGluc3RhbGwucHMxIC1Gcm9tU291cmNlCiAgICAuXGluc3RhbGwucHMxIC1Vbmluc3RhbGwKIz4KW0NtZGxldEJpbmRpbmcoKV0KcGFyYW0oCiAgICBbc3RyaW5nXSRWZXJzaW9uICAgICAgPSAiIiwKICAgIFtzdHJpbmddJEluc3RhbGxEaXIgICA9ICIiLAogICAgW3N0cmluZ10kQ29uZmlnRGlyICAgID0gIiIsCiAgICBbc3RyaW5nXSRIb21lc2VydmVyICAgPSAiaHR0cHM6Ly9tb3ppbGxhLm1vZHVsYXIuaW0iLAogICAgW3N0cmluZ10kTG9naW5NZXRob2QgID0gInNzbyIsCiAgICBbc3RyaW5nXSRCaW5kICAgICAgICAgPSAiMTI3LjAuMC4xOjUxNDAiLAogICAgW3N0cmluZ10kVG9rZW4gICAgICAgID0gIiIsCiAgICBbc3RyaW5nXSRSZXBvICAgICAgICAgPSAiRkxZMTkxOS9tYXRyaXgtc2F0b3JpIiwKICAgIFtzdHJpbmddJEFwaUJhc2UgICAgICA9ICJodHRwczovL2FwaS5naXRodWIuY29tIiwKICAgIFtzdHJpbmddJERvd25sb2FkQmFzZSA9ICJodHRwczovL2dpdGh1Yi5jb20iLAogICAgW3N0cmluZ10kVGFyZ2V0ICAgICAgID0gIiIsCiAgICBbc3dpdGNoXSRGcm9tU291cmNlLAogICAgW3N3aXRjaF0kVW5pbnN0YWxsLAogICAgW3N3aXRjaF0kTm9QYXRoLAogICAgW3N3aXRjaF0kSGVscAopCgokRXJyb3JBY3Rpb25QcmVmZXJlbmNlID0gIlN0b3AiCiRCaW4gPSAibWF0cml4LXNhdG9yaSIKCmZ1bmN0aW9uIEluZm8geyBwYXJhbShbc3RyaW5nXSRtKSBXcml0ZS1Ib3N0ICRtIC1Gb3JlZ3JvdW5kQ29sb3IgR3JlZW4gfQpmdW5jdGlvbiBXYXJuIHsgcGFyYW0oW3N0cmluZ10kbSkgV3JpdGUtSG9zdCAkbSAtRm9yZWdyb3VuZENvbG9yIFllbGxvdyB9CmZ1bmN0aW9uIEZhaWwgeyBwYXJhbShbc3RyaW5nXSRtKSBXcml0ZS1Ib3N0ICLplJnor686ICRtIiAtRm9yZWdyb3VuZENvbG9yIFJlZDsgZXhpdCAxIH0KCmlmICgkSGVscCkgewogICAgR2V0LUhlbHAgJFBTQ29tbWFuZFBhdGggLUZ1bGwKICAgIGV4aXQgMAp9CgojIC0tLS0g55uu5b2V6buY6K6k5YC8IC0tLS0KaWYgKC1ub3QgJEluc3RhbGxEaXIpIHsKICAgIGlmICgkSXNXaW5kb3dzIC1hbmQgJGVudjpMT0NBTEFQUERBVEEpIHsgJEluc3RhbGxEaXIgPSBKb2luLVBhdGggJGVudjpMT0NBTEFQUERBVEEgIm1hdHJpeC1zYXRvcmlcYmluIiB9CiAgICBlbHNlIHsgJEluc3RhbGxEaXIgPSBKb2luLVBhdGggJEhPTUUgIi5sb2NhbFxiaW4iIH0KfQppZiAoLW5vdCAkQ29uZmlnRGlyKSB7CiAgICBpZiAoJElzV2luZG93cyAtYW5kICRlbnY6QVBQREFUQSkgeyAkQ29uZmlnRGlyID0gSm9pbi1QYXRoICRlbnY6QVBQREFUQSAibWF0cml4LXNhdG9yaSIgfQogICAgZWxzZSB7ICRDb25maWdEaXIgPSBKb2luLVBhdGggJEhPTUUgIi5jb25maWdcbWF0cml4LXNhdG9yaSIgfQp9CgojIC0tLS0g55uu5qCH5bmz5Y+wIC0tLS0KZnVuY3Rpb24gR2V0LVRhcmdldCB7CiAgICBpZiAoJFRhcmdldCkgeyByZXR1cm4gJFRhcmdldCB9CiAgICBpZiAoJElzV2luZG93cykgewogICAgICAgICRhcmNoID0gW1N5c3RlbS5SdW50aW1lLkludGVyb3BTZXJ2aWNlcy5SdW50aW1lSW5mb3JtYXRpb25dOjpPU0FyY2hpdGVjdHVyZQogICAgICAgIHN3aXRjaCAoJGFyY2gpIHsKICAgICAgICAgICAgIlg2NCIgICB7IHJldHVybiAieDg2XzY0LXBjLXdpbmRvd3MtbXN2YyIgfQogICAgICAgICAgICAiQXJtNjQiIHsgRmFpbCAiV2luZG93cyBBUk02NCDmmoLml6DpooTnvJbor5HljIXvvIzor7fnlKggLUZyb21Tb3VyY2Ug5rqQ56CB57yW6K+RIiB9CiAgICAgICAgICAgIGRlZmF1bHQgeyBGYWlsICLkuI3mlK/mjIHnmoTmnrbmnoQ6ICRhcmNoIiB9CiAgICAgICAgfQogICAgfQogICAgRmFpbCAiaW5zdGFsbC5wczEg6Z2i5ZCRIFdpbmRvd3PvvJvpnZ4gV2luZG93cyDor7fnlKggaW5zdGFsbC5zaO+8iOaIluaYvuW8j+S8oCAtVGFyZ2V0IOS7heeUqOS6jua1i+ivle+8iSIKfQoKIyAtLS0tIOeJiOacrOino+aekCAtLS0tCmZ1bmN0aW9uIFJlc29sdmUtVmVyc2lvbiB7CiAgICBpZiAoJFZlcnNpb24pIHsgcmV0dXJuICRWZXJzaW9uIH0KICAgIEluZm8gIuato+WcqOafpeivouacgOaWsCBSZWxlYXNlIC4uLiIKICAgIHRyeSB7CiAgICAgICAgJG1ldGEgPSBJbnZva2UtUmVzdE1ldGhvZCAtVXJpICIkQXBpQmFzZS9yZXBvcy8kUmVwby9yZWxlYXNlcy9sYXRlc3QiIC1IZWFkZXJzIEB7ICJVc2VyLUFnZW50IiA9ICJtYXRyaXgtc2F0b3JpLWluc3RhbGxlciIgfQogICAgfSBjYXRjaCB7CiAgICAgICAgRmFpbCAi5peg5rOV5p+l6K+iIFJlbGVhc2Ug5L+h5oGvOiAkKCRfLkV4Y2VwdGlvbi5NZXNzYWdlKSIKICAgIH0KICAgIGlmICgtbm90ICRtZXRhLnRhZ19uYW1lKSB7IEZhaWwgIuino+aekOS4jeWIsOacgOaWsOeJiOacrOWPtyIgfQogICAgSW5mbyAi5pyA5paw54mI5pysOiAkKCRtZXRhLnRhZ19uYW1lKSIKICAgIHJldHVybiAkbWV0YS50YWdfbmFtZQp9CgojIC0tLS0g6ZqP5py65a+G6ZKlIC0tLS0KZnVuY3Rpb24gTmV3LVRva2VuIHsKICAgICRieXRlcyA9IFtTeXN0ZW0uU2VjdXJpdHkuQ3J5cHRvZ3JhcGh5LlJhbmRvbU51bWJlckdlbmVyYXRvcl06OkdldEJ5dGVzKDI0KQogICAgcmV0dXJuIC1qb2luICgkYnl0ZXMgfCBGb3JFYWNoLU9iamVjdCB7ICRfLlRvU3RyaW5nKCJ4MiIpIH0pCn0KCiMgLS0tLSDmoKHpqowgU0hBMjU2IC0tLS0KZnVuY3Rpb24gVmVyaWZ5LUNoZWNrc3VtIHsKICAgIHBhcmFtKFtzdHJpbmddJEZpbGUsIFtzdHJpbmddJFN1bUZpbGUpCiAgICAkbGluZSA9IChHZXQtQ29udGVudCAkU3VtRmlsZSAtRmlyc3QgMSkKICAgIGlmICgtbm90ICRsaW5lKSB7IEZhaWwgIuagoemqjOaWh+S7tuS4uuepuiIgfQogICAgJGV4cGVjdGVkID0gKCRsaW5lIC1zcGxpdCAiXHMrIilbMF0uVG9Mb3dlckludmFyaWFudCgpCiAgICAkYWN0dWFsID0gKEdldC1GaWxlSGFzaCAtQWxnb3JpdGhtIFNIQTI1NiAtUGF0aCAkRmlsZSkuSGFzaC5Ub0xvd2VySW52YXJpYW50KCkKICAgIGlmICgkZXhwZWN0ZWQgLW5lICRhY3R1YWwpIHsgRmFpbCAiU0hBMjU2IOagoemqjOWksei0pe+8iOacn+acmyAkZXhwZWN0ZWTvvIzlrp7pmYUgJGFjdHVhbO+8ie+8jOW3suS4reatouWuieijhSIgfQogICAgSW5mbyAiU0hBMjU2IOagoemqjOmAmui/hyIKfQoKIyAtLS0tIOS7jiBSZWxlYXNlIOWuieijhSAtLS0tCmZ1bmN0aW9uIEluc3RhbGwtRnJvbVJlbGVhc2UgewogICAgJHQgPSBHZXQtVGFyZ2V0CiAgICAkYXNzZXQgPSAiJHtCaW59XyR7VmVyc2lvbn1fJHt0fS56aXAiCiAgICAkdXJsID0gIiREb3dubG9hZEJhc2UvJFJlcG8vcmVsZWFzZXMvZG93bmxvYWQvJFZlcnNpb24vJGFzc2V0IgogICAgJHRtcCA9IEpvaW4tUGF0aCAoW1N5c3RlbS5JTy5QYXRoXTo6R2V0VGVtcFBhdGgoKSkgKCJtcy1pbnN0YWxsLSIgKyBbZ3VpZF06Ok5ld0d1aWQoKS5Ub1N0cmluZygiTiIpKQogICAgTmV3LUl0ZW0gLUl0ZW1UeXBlIERpcmVjdG9yeSAtRm9yY2UgLVBhdGggJHRtcCB8IE91dC1OdWxsCgogICAgSW5mbyAi55uu5qCH5bmz5Y+wOiAkdCIKICAgIEluZm8gIuS4i+i9vTogJHVybCIKICAgICR6aXAgPSBKb2luLVBhdGggJHRtcCAkYXNzZXQKICAgICRzdW0gPSAiJHppcC5zaGEyNTYiCiAgICB0cnkgewogICAgICAgIEludm9rZS1XZWJSZXF1ZXN0IC1VcmkgJHVybCAtT3V0RmlsZSAkemlwIC1Vc2VCYXNpY1BhcnNpbmcKICAgICAgICBJbnZva2UtV2ViUmVxdWVzdCAtVXJpICIkdXJsLnNoYTI1NiIgLU91dEZpbGUgJHN1bSAtVXNlQmFzaWNQYXJzaW5nCiAgICB9IGNhdGNoIHsKICAgICAgICBGYWlsICLkuIvovb3lpLHotKXvvIzor7fmo4Dmn6XniYjmnKzlj7fkuI7nvZHnu5w6ICQoJF8uRXhjZXB0aW9uLk1lc3NhZ2UpIgogICAgfQogICAgVmVyaWZ5LUNoZWNrc3VtIC1GaWxlICR6aXAgLVN1bUZpbGUgJHN1bQoKICAgIEluZm8gIuino+WOiyAuLi4iCiAgICAkZXggPSBKb2luLVBhdGggJHRtcCAiZXh0cmFjdCIKICAgIHRyeSB7IEV4cGFuZC1BcmNoaXZlIC1QYXRoICR6aXAgLURlc3RpbmF0aW9uUGF0aCAkZXggLUZvcmNlIH0gY2F0Y2ggeyBGYWlsICLop6PljovlpLHotKU6ICQoJF8uRXhjZXB0aW9uLk1lc3NhZ2UpIiB9CiAgICAkZXhlID0gR2V0LUNoaWxkSXRlbSAtUGF0aCAkZXggLVJlY3Vyc2UgLUZpbHRlciAiJEJpbi5leGUiIHwgU2VsZWN0LU9iamVjdCAtRmlyc3QgMQogICAgaWYgKC1ub3QgJGV4ZSkgeyBGYWlsICLop6PljovlkI7mib7kuI3liLAgJEJpbi5leGUiIH0KCiAgICBOZXctSXRlbSAtSXRlbVR5cGUgRGlyZWN0b3J5IC1Gb3JjZSAtUGF0aCAkSW5zdGFsbERpciB8IE91dC1OdWxsCiAgICAkZGVzdCA9IEpvaW4tUGF0aCAkSW5zdGFsbERpciAiJEJpbi5leGUiCiAgICBDb3B5LUl0ZW0gLVBhdGggJGV4ZS5GdWxsTmFtZSAtRGVzdGluYXRpb24gJGRlc3QgLUZvcmNlCiAgICAkc2NyaXB0OkJpblBhdGggPSAkZGVzdAogICAgSW5mbyAi5bey5a6J6KOFOiAkZGVzdCIKCiAgICBSZW1vdmUtSXRlbSAtUGF0aCAkdG1wIC1SZWN1cnNlIC1Gb3JjZSAtRXJyb3JBY3Rpb24gU2lsZW50bHlDb250aW51ZQp9CgojIC0tLS0g5rqQ56CB57yW6K+RIC0tLS0KZnVuY3Rpb24gSW5zdGFsbC1Gcm9tU291cmNlIHsKICAgICRnaXQgPSBHZXQtQ29tbWFuZCBnaXQgLUVycm9yQWN0aW9uIFNpbGVudGx5Q29udGludWUKICAgICRjYXJnbyA9IEdldC1Db21tYW5kIGNhcmdvIC1FcnJvckFjdGlvbiBTaWxlbnRseUNvbnRpbnVlCiAgICBpZiAoLW5vdCAkZ2l0IC1vciAtbm90ICRjYXJnbykgeyBGYWlsICItRnJvbVNvdXJjZSDpnIDopoHmnKzmnLrlronoo4UgZ2l0IOS4jiBSdXN0KGNhcmdvKSIgfQogICAgJHRtcCA9IEpvaW4tUGF0aCAoW1N5c3RlbS5JTy5QYXRoXTo6R2V0VGVtcFBhdGgoKSkgKCJtcy1zcmMtIiArIFtndWlkXTo6TmV3R3VpZCgpLlRvU3RyaW5nKCJOIikpCiAgICBJbmZvICLku47mupDnoIHnvJbor5HvvIjlj6/og73pnIDopoHlh6DliIbpkp/vvIkuLi4iCiAgICAmIGdpdCBjbG9uZSAtLWRlcHRoIDEgImh0dHBzOi8vZ2l0aHViLmNvbS8kUmVwby5naXQiICR0bXAKICAgIGlmICgkTEFTVEVYSVRDT0RFIC1uZSAwKSB7IEZhaWwgImdpdCBjbG9uZSDlpLHotKUiIH0KICAgICYgY2FyZ28gYnVpbGQgLS1yZWxlYXNlIC0tbWFuaWZlc3QtcGF0aCAoSm9pbi1QYXRoICR0bXAgIkNhcmdvLnRvbWwiKQogICAgaWYgKCRMQVNURVhJVENPREUgLW5lIDApIHsgRmFpbCAiY2FyZ28gYnVpbGQg5aSx6LSlIiB9CiAgICBOZXctSXRlbSAtSXRlbVR5cGUgRGlyZWN0b3J5IC1Gb3JjZSAtUGF0aCAkSW5zdGFsbERpciB8IE91dC1OdWxsCiAgICAkZGVzdCA9IEpvaW4tUGF0aCAkSW5zdGFsbERpciAiJEJpbi5leGUiCiAgICAkYnVpbHQgPSBKb2luLVBhdGggJHRtcCAidGFyZ2V0XHJlbGVhc2VcJEJpbi5leGUiCiAgICBpZiAoLW5vdCAoVGVzdC1QYXRoICRidWlsdCkpIHsgJGJ1aWx0ID0gSm9pbi1QYXRoICR0bXAgInRhcmdldFxyZWxlYXNlXCRCaW4iIH0KICAgIENvcHktSXRlbSAtUGF0aCAkYnVpbHQgLURlc3RpbmF0aW9uICRkZXN0IC1Gb3JjZQogICAgJHNjcmlwdDpCaW5QYXRoID0gJGRlc3QKICAgIEluZm8gIuW3suWuieijhTogJGRlc3QiCiAgICBSZW1vdmUtSXRlbSAtUGF0aCAkdG1wIC1SZWN1cnNlIC1Gb3JjZSAtRXJyb3JBY3Rpb24gU2lsZW50bHlDb250aW51ZQp9CgojIC0tLS0g6YWN572u55Sf5oiQIC0tLS0KZnVuY3Rpb24gV3JpdGUtQ29uZmlnIHsKICAgIGlmICgtbm90ICRUb2tlbikgeyAkVG9rZW4gPSBOZXctVG9rZW4gfQogICAgaWYgKC1ub3QgJFRva2VuKSB7IEZhaWwgIuaXoOazleeUn+aIkOmaj+acuuWvhumSpe+8jOivt+eUqCAtVG9rZW4g5oyH5a6aIiB9CiAgICBOZXctSXRlbSAtSXRlbVR5cGUgRGlyZWN0b3J5IC1Gb3JjZSAtUGF0aCAkQ29uZmlnRGlyIHwgT3V0LU51bGwKICAgICRlbnZGaWxlID0gSm9pbi1QYXRoICRDb25maWdEaXIgImNvbmZpZy5lbnYiCiAgICAkc3RhdGVEaXIgPSBKb2luLVBhdGggJENvbmZpZ0RpciAiZGF0YSIKCiAgICBpZiAoVGVzdC1QYXRoICRlbnZGaWxlKSB7CiAgICAgICAgSW5mbyAi5L+d55WZ5bey5pyJ6YWN572uOiAkZW52RmlsZSIKICAgICAgICAkb2xkID0gKFNlbGVjdC1TdHJpbmcgLVBhdGggJGVudkZpbGUgLVBhdHRlcm4gJ15TQVRPUklfVE9LRU49KC4qKSQnIHwgU2VsZWN0LU9iamVjdCAtRmlyc3QgMSkKICAgICAgICBpZiAoJG9sZCkgeyAkc2NyaXB0OlRva2VuID0gJG9sZC5NYXRjaGVzWzBdLkdyb3Vwc1sxXS5WYWx1ZSB9CiAgICB9IGVsc2UgewogICAgICAgICRjb250ZW50ID0gQCgKICAgICAgICAgICAgIiMgbWF0cml4LXNhdG9yaSDphY3nva7vvIjnlLEgaW5zdGFsbC5wczEg55Sf5oiQ77yM5Y+v5oyJ6ZyA5L+u5pS577yJIgogICAgICAgICAgICAiTUFUUklYX0hPTUVTRVJWRVI9JEhvbWVzZXJ2ZXIiCiAgICAgICAgICAgICJNQVRSSVhfTE9HSU5fTUVUSE9EPSRMb2dpbk1ldGhvZCIKICAgICAgICAgICAgIiMg5a+G56CB55m75b2V5pe25aGr5YaZ5LiL6Z2i5Lik6aG5OiIKICAgICAgICAgICAgIiMgTUFUUklYX1VTRVJOQU1FPSIKICAgICAgICAgICAgIiMgTUFUUklYX1BBU1NXT1JEPSIKICAgICAgICAgICAgIiMg5bey5pyJIGFjY2VzcyB0b2tlbiDnmbvlvZXml7bloavlhpk6IgogICAgICAgICAgICAiIyBNQVRSSVhfQUNDRVNTX1RPS0VOPSIKICAgICAgICAgICAgIk1BVFJJWF9TU09fQ0FMTEJBQ0tfQklORD0xMjcuMC4wLjE6ODA4OCIKICAgICAgICAgICAgIlNBVE9SSV9CSU5EPSRCaW5kIgogICAgICAgICAgICAiU0FUT1JJX1RPS0VOPSRUb2tlbiIKICAgICAgICAgICAgIk1BVFJJWF9TVEFURV9ESVI9JHN0YXRlRGlyIgogICAgICAgICAgICAiUlVTVF9MT0c9aW5mbyIKICAgICAgICApCiAgICAgICAgU2V0LUNvbnRlbnQgLVBhdGggJGVudkZpbGUgLVZhbHVlICRjb250ZW50IC1FbmNvZGluZyBVVEY4CiAgICAgICAgSW5mbyAi5bey55Sf5oiQ6YWN572uOiAkZW52RmlsZSIKICAgIH0KICAgIE5ldy1JdGVtIC1JdGVtVHlwZSBEaXJlY3RvcnkgLUZvcmNlIC1QYXRoICRzdGF0ZURpciAtRXJyb3JBY3Rpb24gU2lsZW50bHlDb250aW51ZSB8IE91dC1OdWxsCgogICAgIyDnlJ/miJDor7vlj5bphY3nva7lubblkK/liqjnmoTohJrmnKwKICAgICRzdGFydCA9IEpvaW4tUGF0aCAkQ29uZmlnRGlyICJzdGFydC1tYXRyaXgtc2F0b3JpLnBzMSIKICAgICRwbGFjZWhvbGRlciA9ICJfX0JJTlBBVEhfXyIKICAgICRzdGFydENvbnRlbnQgPSBAJwojIOivu+WPliBjb25maWcuZW52ICBzZXR0aW5nIOeOr+Wig+WPmOmHj+WQjuWQr+WKqCBtYXRyaXgtc2F0b3JpCiRlbnZGaWxlID0gSm9pbi1QYXRoICRQU1NjcmlwdFJvb3QgJ2NvbmZpZy5lbnYnCmlmIChUZXN0LVBhdGggJGVudkZpbGUpIHsKICAgIEdldC1Db250ZW50ICRlbnZGaWxlIHwgV2hlcmUtT2JqZWN0IHsgJF8gLWFuZCAtbm90ICRfLlN0YXJ0c1dpdGgoJyMnKSAtYW5kICRfIC1tYXRjaCAnPScgfSB8IEZvckVhY2gtT2JqZWN0IHsKICAgICAgICAkaWR4ID0gJF8uSW5kZXhPZignPScpCiAgICAgICAgJGsgPSAkXy5TdWJzdHJpbmcoMCwgJGlkeCkuVHJpbSgpCiAgICAgICAgJHYgPSAkXy5TdWJzdHJpbmcoJGlkeCArIDEpLlRyaW0oKQogICAgICAgIFNldC1JdGVtIC1QYXRoICJFbnY6JGsiIC1WYWx1ZSAkdgogICAgfQp9CiRleGUgPSAnX19CSU5QQVRIX18nCmlmICgtbm90IChUZXN0LVBhdGggJGV4ZSkpIHsgV3JpdGUtSG9zdCAi5om+5LiN5YiwICRleGUiIC1Gb3JlZ3JvdW5kQ29sb3IgUmVkOyBleGl0IDEgfQomICRleGUKJ0AgLXJlcGxhY2UgJHBsYWNlaG9sZGVyLCAoJEJpblBhdGggLXJlcGxhY2UgJ1xcJywgJ1xcJykKICAgIFNldC1Db250ZW50IC1QYXRoICRzdGFydCAtVmFsdWUgJHN0YXJ0Q29udGVudCAtRW5jb2RpbmcgVVRGOAogICAgSW5mbyAi5bey55Sf5oiQ5ZCv5Yqo6ISa5pysOiAkc3RhcnQiCn0KCiMgLS0tLSDliqDlhaUgUEFUSCAtLS0tCmZ1bmN0aW9uIEFkZC1Ub1BhdGggewogICAgaWYgKC1ub3QgJElzV2luZG93cyAtb3IgJE5vUGF0aCkgeyByZXR1cm4gfQogICAgdHJ5IHsKICAgICAgICAkcCA9IFtFbnZpcm9ubWVudF06OkdldEVudmlyb25tZW50VmFyaWFibGUoIlBhdGgiLCAiVXNlciIpCiAgICAgICAgaWYgKCRwIC1ub3RsaWtlICIqJEluc3RhbGxEaXIqIikgewogICAgICAgICAgICBbRW52aXJvbm1lbnRdOjpTZXRFbnZpcm9ubWVudFZhcmlhYmxlKCJQYXRoIiwgIiRwOyRJbnN0YWxsRGlyIiwgIlVzZXIiKQogICAgICAgICAgICBJbmZvICLlt7LmioogJEluc3RhbGxEaXIg5Yqg5YWl55So5oi3IFBBVEjvvIjph43lvIDnu4jnq6/nlJ/mlYjvvIkiCiAgICAgICAgfQogICAgfSBjYXRjaCB7IFdhcm4gIuaXoOazleiHquWKqOWKoOWFpSBQQVRI77yM6K+35omL5Yqo5re75YqgICRJbnN0YWxsRGlyOiAkKCRfLkV4Y2VwdGlvbi5NZXNzYWdlKSIgfQp9CgojIC0tLS0g5Y246L29IC0tLS0KZnVuY3Rpb24gRG8tVW5pbnN0YWxsIHsKICAgIFJlbW92ZS1JdGVtIC1QYXRoIChKb2luLVBhdGggJEluc3RhbGxEaXIgIiRCaW4uZXhlIikgLUZvcmNlIC1FcnJvckFjdGlvbiBTaWxlbnRseUNvbnRpbnVlCiAgICBSZW1vdmUtSXRlbSAtUGF0aCAoSm9pbi1QYXRoICRDb25maWdEaXIgInN0YXJ0LW1hdHJpeC1zYXRvcmkucHMxIikgLUZvcmNlIC1FcnJvckFjdGlvbiBTaWxlbnRseUNvbnRpbnVlCiAgICBpZiAoJElzV2luZG93cykgewogICAgICAgIHRyeSB7CiAgICAgICAgICAgICRwID0gW0Vudmlyb25tZW50XTo6R2V0RW52aXJvbm1lbnRWYXJpYWJsZSgiUGF0aCIsICJVc2VyIikKICAgICAgICAgICAgaWYgKCRwIC1saWtlICIqJEluc3RhbGxEaXIqIikgewogICAgICAgICAgICAgICAgJHAyID0gKCRwIC1zcGxpdCAnOycgfCBXaGVyZS1PYmplY3QgeyAkXyAtYW5kICRfIC1uZSAkSW5zdGFsbERpciB9KSAtam9pbiAnOycKICAgICAgICAgICAgICAgIFtFbnZpcm9ubWVudF06OlNldEVudmlyb25tZW50VmFyaWFibGUoIlBhdGgiLCAkcDIsICJVc2VyIikKICAgICAgICAgICAgfQogICAgICAgIH0gY2F0Y2gge30KICAgIH0KICAgIEluZm8gIuW3suWNuOi9vSAkSW5zdGFsbERpclwkQmluLmV4ZSDkuI7lkK/liqjohJrmnKwiCiAgICBJbmZvICLphY3nva7kuI7mlbDmja7nm67lvZUgJENvbmZpZ0RpciDlt7Lkv53nlZnvvIjlpoLpnIDliKDpmaTor7fmiYvliqggUmVtb3ZlLUl0ZW3vvIkiCn0KCiMgLS0tLSDkuLvmtYHnqIsgLS0tLQppZiAoJFVuaW5zdGFsbCkgeyBEby1Vbmluc3RhbGw7IGV4aXQgMCB9CgppZiAoJEZyb21Tb3VyY2UpIHsgSW5zdGFsbC1Gcm9tU291cmNlIH0KZWxzZSB7ICRWZXJzaW9uID0gUmVzb2x2ZS1WZXJzaW9uOyBJbnN0YWxsLUZyb21SZWxlYXNlIH0KCldyaXRlLUNvbmZpZwpBZGQtVG9QYXRoCgpXcml0ZS1Ib3N0ICIiCkluZm8gIuWuieijheWujOaIkCEiCkluZm8gIiAg5LqM6L+b5Yi2OiAgICRCaW5QYXRoIgpJbmZvICIgIOmFjee9rjogICAgICQoSm9pbi1QYXRoICRDb25maWdEaXIgJ2NvbmZpZy5lbnYnKSIKSW5mbyAiICDmlbDmja7nm67lvZU6ICQoSm9pbi1QYXRoICRDb25maWdEaXIgJ2RhdGEnKSIKSW5mbyAiICBLb2lzaGk6ICAgYWRhcHRlci1zYXRvcmkg55qEIGVuZHBvaW50IOWhqyAkQmluZCDlr7nlupTlnLDlnYDvvIx0b2tlbiDloas6ICRUb2tlbiIKSW5mbyAiICDlkK/liqg6ICAgICBwb3dlcnNoZWxsIC1FeGVjdXRpb25Qb2xpY3kgQnlwYXNzIC1GaWxlIGAiJChKb2luLVBhdGggJENvbmZpZ0RpciAnc3RhcnQtbWF0cml4LXNhdG9yaS5wczEnKWAiIgo=
+<#
+.SYNOPSIS
+    matrix-satori 一键安装（Windows 原生 PowerShell，无需 Git Bash / sh）
+
+.DESCRIPTION
+    从 GitHub Releases 下载 Windows 预编译包，校验 SHA256，解压安装，
+    生成配置模板和一个读取配置后启动的脚本。支持源码编译回退与卸载。
+
+.EXAMPLE
+    iwr https://cdn.jsdelivr.net/gh/FLY1919/matrix-satori@main/install.ps1 -OutFile install.ps1
+    powershell -ExecutionPolicy Bypass -File .\install.ps1
+
+.EXAMPLE
+    .\install.ps1 -Version v0.1.0 -InstallDir C:\Tools\matrix-satori -LoginMethod password
+    .\install.ps1 -FromSource
+    .\install.ps1 -Uninstall
+#>
+[CmdletBinding()]
+param(
+    [string]$Version      = "",
+    [string]$InstallDir   = "",
+    [string]$ConfigDir    = "",
+    [string]$Homeserver   = "https://mozilla.modular.im",
+    [string]$LoginMethod  = "sso",
+    [string]$Bind         = "127.0.0.1:5140",
+    [string]$Token        = "",
+    [string]$Repo         = "FLY1919/matrix-satori",
+    [string]$ApiBase      = "https://api.github.com",
+    [string]$DownloadBase = "https://github.com",
+    [string]$Target       = "",
+    [switch]$FromSource,
+    [switch]$Uninstall,
+    [switch]$NoPath,
+    [switch]$Help
+)
+
+$ErrorActionPreference = "Stop"
+$Bin = "matrix-satori"
+
+function Info { param([string]$m) Write-Host $m -ForegroundColor Green }
+function Warn { param([string]$m) Write-Host $m -ForegroundColor Yellow }
+function Fail { param([string]$m) Write-Host "错误: $m" -ForegroundColor Red; exit 1 }
+
+if ($Help) {
+    Get-Help $PSCommandPath -Full
+    exit 0
+}
+
+# ---- 目录默认值 ----
+if (-not $InstallDir) {
+    if ($IsWindows -and $env:LOCALAPPDATA) { $InstallDir = Join-Path $env:LOCALAPPDATA "matrix-satori\bin" }
+    else { $InstallDir = Join-Path $HOME ".local\bin" }
+}
+if (-not $ConfigDir) {
+    if ($IsWindows -and $env:APPDATA) { $ConfigDir = Join-Path $env:APPDATA "matrix-satori" }
+    else { $ConfigDir = Join-Path $HOME ".config\matrix-satori" }
+}
+
+# ---- 目标平台 ----
+function Get-Target {
+    if ($Target) { return $Target }
+    if ($IsWindows) {
+        $arch = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture
+        switch ($arch) {
+            "X64"   { return "x86_64-pc-windows-msvc" }
+            "Arm64" { Fail "Windows ARM64 暂无预编译包，请用 -FromSource 源码编译" }
+            default { Fail "不支持的架构: $arch" }
+        }
+    }
+    Fail "install.ps1 面向 Windows；非 Windows 请用 install.sh（或显式传 -Target 仅用于测试）"
+}
+
+# ---- 版本解析 ----
+function Resolve-Version {
+    if ($Version) { return $Version }
+    Info "正在查询最新 Release ..."
+    try {
+        $meta = Invoke-RestMethod -Uri "$ApiBase/repos/$Repo/releases/latest" -Headers @{ "User-Agent" = "matrix-satori-installer" }
+    } catch {
+        Fail "无法查询 Release 信息: $($_.Exception.Message)"
+    }
+    if (-not $meta.tag_name) { Fail "解析不到最新版本号" }
+    Info "最新版本: $($meta.tag_name)"
+    return $meta.tag_name
+}
+
+# ---- 随机密钥 ----
+function New-Token {
+    $bytes = [System.Security.Cryptography.RandomNumberGenerator]::GetBytes(24)
+    return -join ($bytes | ForEach-Object { $_.ToString("x2") })
+}
+
+# ---- 校验 SHA256 ----
+function Verify-Checksum {
+    param([string]$File, [string]$SumFile)
+    $line = (Get-Content $SumFile -First 1)
+    if (-not $line) { Fail "校验文件为空" }
+    $expected = ($line -split "\s+")[0].ToLowerInvariant()
+    $actual = (Get-FileHash -Algorithm SHA256 -Path $File).Hash.ToLowerInvariant()
+    if ($expected -ne $actual) { Fail "SHA256 校验失败（期望 $expected，实际 $actual），已中止安装" }
+    Info "SHA256 校验通过"
+}
+
+# ---- 从 Release 安装 ----
+function Install-FromRelease {
+    $t = Get-Target
+    $asset = "${Bin}_${Version}_${t}.zip"
+    $url = "$DownloadBase/$Repo/releases/download/$Version/$asset"
+    $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("ms-install-" + [guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Force -Path $tmp | Out-Null
+
+    Info "目标平台: $t"
+    Info "下载: $url"
+    $zip = Join-Path $tmp $asset
+    $sum = "$zip.sha256"
+    try {
+        Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
+        Invoke-WebRequest -Uri "$url.sha256" -OutFile $sum -UseBasicParsing
+    } catch {
+        Fail "下载失败，请检查版本号与网络: $($_.Exception.Message)"
+    }
+    Verify-Checksum -File $zip -SumFile $sum
+
+    Info "解压 ..."
+    $ex = Join-Path $tmp "extract"
+    try { Expand-Archive -Path $zip -DestinationPath $ex -Force } catch { Fail "解压失败: $($_.Exception.Message)" }
+    $exe = Get-ChildItem -Path $ex -Recurse -Filter "$Bin.exe" | Select-Object -First 1
+    if (-not $exe) { Fail "解压后找不到 $Bin.exe" }
+
+    New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
+    $dest = Join-Path $InstallDir "$Bin.exe"
+    Copy-Item -Path $exe.FullName -Destination $dest -Force
+    $script:BinPath = $dest
+    Info "已安装: $dest"
+
+    Remove-Item -Path $tmp -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+# ---- 源码编译 ----
+function Install-FromSource {
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    $cargo = Get-Command cargo -ErrorAction SilentlyContinue
+    if (-not $git -or -not $cargo) { Fail "-FromSource 需要本机安装 git 与 Rust(cargo)" }
+    $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("ms-src-" + [guid]::NewGuid().ToString("N"))
+    Info "从源码编译（可能需要几分钟）..."
+    & git clone --depth 1 "https://github.com/$Repo.git" $tmp
+    if ($LASTEXITCODE -ne 0) { Fail "git clone 失败" }
+    & cargo build --release --manifest-path (Join-Path $tmp "Cargo.toml")
+    if ($LASTEXITCODE -ne 0) { Fail "cargo build 失败" }
+    New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
+    $dest = Join-Path $InstallDir "$Bin.exe"
+    $built = Join-Path $tmp "target\release\$Bin.exe"
+    if (-not (Test-Path $built)) { $built = Join-Path $tmp "target\release\$Bin" }
+    Copy-Item -Path $built -Destination $dest -Force
+    $script:BinPath = $dest
+    Info "已安装: $dest"
+    Remove-Item -Path $tmp -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+# ---- 配置生成 ----
+function Write-Config {
+    if (-not $Token) { $Token = New-Token }
+    if (-not $Token) { Fail "无法生成随机密钥，请用 -Token 指定" }
+    New-Item -ItemType Directory -Force -Path $ConfigDir | Out-Null
+    $envFile = Join-Path $ConfigDir "config.env"
+    $stateDir = Join-Path $ConfigDir "data"
+
+    if (Test-Path $envFile) {
+        Info "保留已有配置: $envFile"
+        $old = (Select-String -Path $envFile -Pattern '^SATORI_TOKEN=(.*)$' | Select-Object -First 1)
+        if ($old) { $script:Token = $old.Matches[0].Groups[1].Value }
+    } else {
+        $content = @(
+            "# matrix-satori 配置（由 install.ps1 生成，可按需修改）"
+            "MATRIX_HOMESERVER=$Homeserver"
+            "MATRIX_LOGIN_METHOD=$LoginMethod"
+            "# 密码登录时填写下面两项:"
+            "# MATRIX_USERNAME="
+            "# MATRIX_PASSWORD="
+            "# 已有 access token 登录时填写:"
+            "# MATRIX_ACCESS_TOKEN="
+            "MATRIX_SSO_CALLBACK_BIND=127.0.0.1:8088"
+            "SATORI_BIND=$Bind"
+            "SATORI_TOKEN=$Token"
+            "MATRIX_STATE_DIR=$stateDir"
+            "RUST_LOG=info"
+        )
+        Set-Content -Path $envFile -Value $content -Encoding UTF8
+        Info "已生成配置: $envFile"
+    }
+    New-Item -ItemType Directory -Force -Path $stateDir -ErrorAction SilentlyContinue | Out-Null
+
+    # 生成读取配置并启动的脚本
+    $start = Join-Path $ConfigDir "start-matrix-satori.ps1"
+    $placeholder = "__BINPATH__"
+    $startContent = @'
+# 读取 config.env  setting 环境变量后启动 matrix-satori
+$envFile = Join-Path $PSScriptRoot 'config.env'
+if (Test-Path $envFile) {
+    Get-Content $envFile | Where-Object { $_ -and -not $_.StartsWith('#') -and $_ -match '=' } | ForEach-Object {
+        $idx = $_.IndexOf('=')
+        $k = $_.Substring(0, $idx).Trim()
+        $v = $_.Substring($idx + 1).Trim()
+        Set-Item -Path "Env:$k" -Value $v
+    }
+}
+$exe = '__BINPATH__'
+if (-not (Test-Path $exe)) { Write-Host "找不到 $exe" -ForegroundColor Red; exit 1 }
+& $exe
+'@ -replace $placeholder, ($BinPath -replace '\\', '\\')
+    Set-Content -Path $start -Value $startContent -Encoding UTF8
+    Info "已生成启动脚本: $start"
+}
+
+# ---- 加入 PATH ----
+function Add-ToPath {
+    if (-not $IsWindows -or $NoPath) { return }
+    try {
+        $p = [Environment]::GetEnvironmentVariable("Path", "User")
+        if ($p -notlike "*$InstallDir*") {
+            [Environment]::SetEnvironmentVariable("Path", "$p;$InstallDir", "User")
+            Info "已把 $InstallDir 加入用户 PATH（重开终端生效）"
+        }
+    } catch { Warn "无法自动加入 PATH，请手动添加 $InstallDir: $($_.Exception.Message)" }
+}
+
+# ---- 卸载 ----
+function Do-Uninstall {
+    Remove-Item -Path (Join-Path $InstallDir "$Bin.exe") -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path (Join-Path $ConfigDir "start-matrix-satori.ps1") -Force -ErrorAction SilentlyContinue
+    if ($IsWindows) {
+        try {
+            $p = [Environment]::GetEnvironmentVariable("Path", "User")
+            if ($p -like "*$InstallDir*") {
+                $p2 = ($p -split ';' | Where-Object { $_ -and $_ -ne $InstallDir }) -join ';'
+                [Environment]::SetEnvironmentVariable("Path", $p2, "User")
+            }
+        } catch {}
+    }
+    Info "已卸载 $InstallDir\$Bin.exe 与启动脚本"
+    Info "配置与数据目录 $ConfigDir 已保留（如需删除请手动 Remove-Item）"
+}
+
+# ---- 主流程 ----
+if ($Uninstall) { Do-Uninstall; exit 0 }
+
+if ($FromSource) { Install-FromSource }
+else { $Version = Resolve-Version; Install-FromRelease }
+
+Write-Config
+Add-ToPath
+
+Write-Host ""
+Info "安装完成!"
+Info "  二进制:   $BinPath"
+Info "  配置:     $(Join-Path $ConfigDir 'config.env')"
+Info "  数据目录: $(Join-Path $ConfigDir 'data')"
+Info "  Koishi:   adapter-satori 的 endpoint 填 $Bind 对应地址，token 填: $Token"
+Info "  启动:     powershell -ExecutionPolicy Bypass -File `"$(Join-Path $ConfigDir 'start-matrix-satori.ps1')`""

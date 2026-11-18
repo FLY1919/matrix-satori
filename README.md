@@ -1,1 +1,218 @@
-IyBtYXRyaXgtc2F0b3JpCgrnlKggKipSdXN0Kiog5YaZ55qEIFtTYXRvcmkg5Y2P6K6uXShodHRwczovL3NhdG9yaS5qcy5vcmcvKeacjeWKoeerr++8jOWQjuerr+WvueaOpSAqKk1hdHJpeCoq77yM6K6p5L2g5oqK5Lu75oSPIE1hdHJpeCDotKblj7fmjqXliLAgKipLb2lzaGkqKu+8iOacgOaWsOeJiCA0LjE4K++8iemHjO+8jOWDj+eUqOWFtuS7lumAgumFjeWZqOS4gOagt+S9v+eUqOOAggoKYGBgCktvaXNoaSAoYWRhcHRlci1zYXRvcmkpICDilIDilIBXZWJTb2NrZXQvSFRUUOKUgOKUgOKWtiAgbWF0cml4LXNhdG9yaSAg4pSA4pSATWF0cml4IENTIEFQSeKUgOKUgOKWtiAg5Lu75oSPIGhvbWVzZXJ2ZXIKYGBgCgojIyDnibnmgKcKCi0gKirlhoXnva7miYDmnInkuLvmtYEgTWF0cml4IOeZu+W9leaWueW8jyoq77yM6L+Q6KGM5pe25o6i5rWL5pyN5Yqh5Zmo5pSv5oyB55qEIGZsb3dzIOiHquWKqOmAgumFje+8jOS4jeWGmeatu+S7u+S9lSBob21lc2VydmVy77yI6K+m6KeB5LiL5pa5IueZu+W9leaWueW8jyLvvIkKLSDlrozmlbTlrp7njrAgU2F0b3JpIOe9keWFs++8mmAvdjEvZXZlbnRzYO+8iFJFQURZIC8gSURFTlRJRlkgLyBQSU5HLVBPTkcgLyBFVkVOVO+8jG9wY29kZSAwLzEvMi8zLzQvNe+8iQotIEhUVFAgQVBJ77yaYG1lc3NhZ2UuY3JlYXRlL3VwZGF0ZS9kZWxldGUvZ2V0L2xpc3Rg44CBYGNoYW5uZWwuKmDjgIFgZ3VpbGQuKmDjgIFgdXNlci5nZXRg44CBYGxvZ2luLmdldGDjgIFgcmVhY3Rpb24uKmAg562JCi0gTWF0cml4IOmVv+i9ruivoiBgL3N5bmNg77yM5pat57q/6Ieq5Yqo6YeN6L+e77yM5ZCM5q2l5L2N54K5ICsg5Yet5o2u6JC955uY77yI6YeN5ZCv5LiN5Lii5raI5oGv44CB5LiN55So6YeN5aSN55m75b2V77yJCi0gTWF0cml4IOS6i+S7tiDihpIgU2F0b3JpIOS6i+S7tu+8muaWh+acrOOAgUDmj5Dlj4rjgIHlm77niYcv6Z+z6aKRL+inhumikS/mlofku7bjgIHlvJXnlKjlm57lpI3jgIHooajmg4Xlm57lupTjgIHmiJDlkZjliqDlhaUv6YCA5Ye644CB5oi/6Ze05pS55ZCN44CB57yW6L6R44CB5pKk5ZueCi0gU2F0b3JpIEVsZW1lbnQg4oaUIE1hdHJpeCBIVE1MIOWPjOWQkei9rOaNou+8iGA8YXQ+YOOAgWA8aW1nPmDjgIFgPHF1b3RlPmDjgIFgPGJyPmDjgIFgPGVtb2ppPmDigKbvvIkKLSBNYXRyaXgg5aqS5L2TIGBteGM6Ly9gIOiHquWKqOi9rOaNouaIkCBIVFRQIFVSTAotIOS7pOeJjOmJtOadg+OAgemdniByb290IOWuueWZqOOAgeWkmuaetuaehCBEb2NrZXIg6ZWc5YOP44CBR2l0SHViIEFjdGlvbnMg6Ieq5Yqo5Y+R54mICgojIyDnmbvlvZXmlrnlvI/vvIjlhajmlK/mjIHvvIkKCueoi+W6j+WQr+WKqOaXtuS8miBgR0VUIC9fbWF0cml4L2NsaWVudC92My9sb2dpbmAg5o6i5rWL5pyN5Yqh5Zmo5pSv5oyB55qE55m75b2V5pa55byP77yM5YaN5oyJ5L2g55qE6YWN572u6YCJ5oup44CC55SoIGAtLWxvZ2luLW1ldGhvZGDvvIjmiJYgYE1BVFJJWF9MT0dJTl9NRVRIT0Rg77yJ5pi+5byP5oyH5a6a77yM6buY6K6kIGBhdXRvYCDoh6rliqjliKTmlq3vvJoKCnwg5pa55byPIHwgYC0tbG9naW4tbWV0aG9kYCB8IOmcgOimgeeahOWPguaVsCB8IOivtOaYjiB8CnwgLS0tIHwgLS0tIHwgLS0tIHwgLS0tIHwKfCDnm7TmjqUgYWNjZXNzIHRva2VuIHwgYGFjY2Vzc3Rva2VuYCB8IGAtLWFjY2Vzcy10b2tlbmAgfCDmnIDlv6vjgILlt7LmnIkgdG9rZW4g5pe255So77yM6Lez6L+H55m75b2VIHwKfCDlr4bnoIHnmbvlvZUgfCBgcGFzc3dvcmRgIHwgYC0tdXNlcm5hbWVgIGAtLXBhc3N3b3JkYCB8IGBtLmxvZ2luLnBhc3N3b3JkYO+8jG1hdHJpeC5vcmcgLyDoh6rlu7ogU3luYXBzZSDluLjnlKggfAp8IFRva2VuIOeZu+W9lSB8IGB0b2tlbmAgfCBgLS1sb2dpbi10b2tlbmAgfCBgbS5sb2dpbi50b2tlbmDvvIznlKggU1NPIOWbnuiwg+S6p+eUn+eahCBsb2dpblRva2VuIOaNoiB0b2tlbiB8CnwgU1NPIOe9kemhteeZu+W9lSB8IGBzc29gIHwg77yI5peg77yM5Lqk5LqS5byP77yJIHwgYG0ubG9naW4uc3NvYO+8jCoq56iL5bqP5YaF572u5pys5Zyw5Zue6LCD5pyN5YqhKirvvIzmiZPljbDpk77mjqXorqnkvaDmtY/op4jlmajnmbvlvZXvvIzoh6rliqjmjaLlj5blubbkv53lrZggdG9rZW4gfAp8IEFwcHNlcnZpY2UgfCBgYXBwbGljYXRpb25zZXJ2aWNlYCB8IGAtLWFzLXRva2VuYCBgLS11c2VyLWlkYCB8IGBtLmxvZ2luLmFwcGxpY2F0aW9uX3NlcnZpY2Vg77yM5bqU55So5pyN5Yqh5Zy65pmvIHwKCmBhdXRvYCDnmoTkvJjlhYjnuqfvvJpgLS1sb2dpbi10b2tlbmAgPiDnlKjmiLflkI0r5a+G56CBID4gYXBwc2VydmljZSA+IOacjeWKoeWZqOaUr+aMgSBTU08g5YiZ6LWw5Lqk5LqS5byPIFNTTyA+IOaKpemUmeW5tuaPkOekuuOAggoK55m75b2V5oiQ5Yqf5ZCO5Yet5o2u57yT5a2Y5YiwIGA8c3RhdGUtZGlyPi9jcmVkZW50aWFscy5qc29uYO+8iOiusOW9lSBob21lc2VydmVy77yJ77yM5LiL5qyh5ZCv5Yqo6Ieq5Yqo5aSN55So77yb5o2i5pyN5Yqh5Zmo5LiN5Lya6K+v55So5penIHRva2Vu44CCCgojIyMg5YWz5LqOIFNTTyDnmbvlvZXvvIhtb3ppbGxhLm1vZHVsYXIuaW0g6L+Z57G777yJCgrmnInkuKTmnaHot6/vvIzku7vpgInlhbbkuIDvvJoKCioq5pa55byPIEEg4oCU4oCUIOiuqeeoi+W6j+WFqOadg+WkhOeQhu+8iOaOqOiNkO+8iSoqCgpgYGAKLS1sb2dpbi1tZXRob2Qgc3NvCmBgYAoK56iL5bqP5Lya5ZyoIGAtLXNzby1jYWxsYmFjay1iaW5kYO+8iOm7mOiupCBgMTI3LjAuMC4xOjgwODhg77yJ6LW35LiA5Liq5Li05pe25Zue6LCD5pyN5Yqh77yM5omT5Y2w5b2i5aaC5LiL6Z2i55qE6ZO+5o6l77yaCgpgYGAK6K+35Zyo5rWP6KeI5Zmo5omT5byA5Lul5LiL6ZO+5o6l5a6M5oiQIFNTTyDnmbvlvZXvvJoKCiAgaHR0cHM6Ly9tb3ppbGxhLm1vZHVsYXIuaW0vX21hdHJpeC9jbGllbnQvdjMvbG9naW4vc3NvL3JlZGlyZWN0P3JlZGlyZWN0VXJsPWh0dHAlM0ElMkYlMkYxMjcuMC4wLjElM0E4MDg4JTJGc2F0b3JpLXNzby1jYWxsYmFjawpgYGAKCua1j+iniOWZqOWujOaIkOeZu+W9le+8iEZpcmVmb3ggQWNjb3VudCAvIEdpdEh1YiAvIEdvb2dsZSDnrYnvvInlkI7vvIxob21lc2VydmVyIOS8muW4puedgCBgbG9naW5Ub2tlbmAg6Lez5Zue5pys5Zyw5Zue6LCD77yM56iL5bqP6Ieq5Yqo5o2i5Y+WIGFjY2VzcyB0b2tlbiDlubbnvJPlrZjvvIznhLblkI7nu6fnu63lkK/liqjjgIIqKuazqOaEjyoq77ya5Zue6LCD5Zyw5Z2A5b+F6aG76IO96KKr5L2g55qE5rWP6KeI5Zmo6K6/6Zeu5Yiw77yb5aaC5p6c56iL5bqP6LeR5Zyo5pyN5Yqh5Zmo5LiK77yM5oqKIGAtLXNzby1yZWRpcmVjdC11cmlgIOiuvuaIkOWFrOe9keWPr+i+vuOAgeW5tuaMh+WQkeacrOacuuWbnuiwg+eahOWcsOWdgO+8iOaIlueUqCBTU0gg56uv5Y+j6L2s5Y+R77yJ44CCCgoqKuaWueW8jyBCIOKAlOKAlCDoh6rlt7Hku47nvZHpobXlrqLmiLfnq6/lpI3liLYgdG9rZW4qKgoKTW96aWxsYSDlrpjmlrnnu5kgYm90IOWPliB0b2tlbiDnmoTlgZrms5XvvIjop4EgW1Rhc2tjbHVzdGVyIOaWh+aho10oaHR0cHM6Ly9maXJlZm94LWNpLXRjLnNlcnZpY2VzLm1vemlsbGEuY29tL2RvY3MvbWFudWFsL2RlcGxveWluZy9tYXRyaXgp77yJ77yaCgoxLiDml6Dnl5Xnqpflj6PmiZPlvIAgW2NoYXQubW96aWxsYS5vcmddKGh0dHBzOi8vY2hhdC5tb3ppbGxhLm9yZy8p77yM55SoIFNTTyDnmbvlvZUgYm90IOi0puWPt++8mwoyLiDlpLTlg48g4oaSICoqU2V0dGluZ3MqKiDihpIgKipIZWxwICYgQWJvdXQqKiDihpIg5ouJ5Yiw5bqV6YOoICoqQWNjZXNzIFRva2VuKiog5aSN5Yi277ybCjMuICoq5LiN6KaB54K56YCA5Ye655m75b2VKirvvIjnmbvlh7rkvJrorqkgdG9rZW4g5aSx5pWI77yJ77yM55u05o6l5YWz5o6J5peg55eV56qX5Y+j77ybCjQuIOeUqCBgLS1hY2Nlc3MtdG9rZW4gJ3N5dF8uLi4nYCDlkK/liqjmnKznqIvluo/jgIIKCj4gYG1vemlsbGEubW9kdWxhci5pbWAg55qEIGAvLndlbGwta25vd24vbWF0cml4L2NsaWVudGAg5pivIDQwNO+8jOWKoeW/hSoq5pi+5byP5YaZIGhvbWVzZXJ2ZXIgVVJMKirjgIJgY2hhdC5tb3ppbGxhLm9yZ2Ag5Y+q5piv572R6aG15a6i5oi356uv77yM5LiN5pivIGhvbWVzZXJ2ZXIgQVBJIOWcsOWdgOOAggoKIyMg5LiA6ZSu5a6J6KOF77yI5o6o6I2Q77yJCgrkuIDooYzlkb3ku6Toh6rliqjkuIvovb3lr7nlupTlubPlj7DnmoTpooTnvJbor5Hkuozov5vliLbjgIHmoKHpqowgU0hBMjU244CB55Sf5oiQ6YWN572u5LiOIHN5c3RlbWQg5Y2V5YWD77yaCgpgYGBiYXNoCmN1cmwgLWZzU0wgaHR0cHM6Ly9yYXcuZ2l0aHVidXNlcmNvbnRlbnQuY29tL0ZMWTE5MTkvbWF0cml4LXNhdG9yaS9tYWluL2luc3RhbGwuc2ggfCBzaApgYGAKCuWuieijheiEmuacrOS8mu+8mgotIOiHquWKqOivhuWIq+ezu+e7ny/mnrbmnoTvvIhMaW51eCB4ODZfNjQgLyBhcm02NCAvIGFybXY344CBbWFjT1MgSW50ZWwgLyBBcHBsZSBTaWxpY29u44CBV2luZG93cyB4ODZfNjTvvInvvIzku47mnIDmlrAgUmVsZWFzZSDkuIvovb3lr7nlupTljIXlubbmoKHpqowgU0hBMjU2Ci0g5LqM6L+b5Yi26buY6K6k6KOF5YiwIGAvdXNyL2xvY2FsL2JpbmDvvIjpnZ4gcm9vdCDoo4XliLAgYH4vLmxvY2FsL2JpbmDvvIkKLSDnlJ/miJAgYG1hdHJpeC1zYXRvcmkuZW52YCDphY3nva7mqKHmnb/vvIjpmo/mnLogU2F0b3JpIHRva2Vu44CBaG9tZXNlcnZlcuOAgeeZu+W9leaWueW8j+etie+8ieWSjCBzeXN0ZW1kIOWNleWFgwotIHJvb3Qg5LiU5qOA5rWL5YiwIHN5c3RlbWQg5pe277yM5o+Q56S655SoIGBzeXN0ZW1jdGwgZW5hYmxlIC0tbm93IG1hdHJpeC1zYXRvcmlgIOWQr+WKqAoK6KOF5a6MKirlhYjnvJbovpHphY3nva4qKuWGjeWQr+WKqO+8mgoKYGBgYmFzaAojIHJvb3Qg6buY6K6k5ZyoIC9ldGMvbWF0cml4LXNhdG9yaS9tYXRyaXgtc2F0b3JpLmVudu+8jOmdniByb290IOWcqCB+Ly5jb25maWcvbWF0cml4LXNhdG9yaS8Kc3VkbyBuYW5vIC9ldGMvbWF0cml4LXNhdG9yaS9tYXRyaXgtc2F0b3JpLmVudgojIOWhq+WFpSBNQVRSSVhfSE9NRVNFUlZFUuOAgeeZu+W9leWHreaNru+8jOaMiemcgOaUuSBTQVRPUklfQklORCAvIFNBVE9SSV9UT0tFTgpzdWRvIHN5c3RlbWN0bCBlbmFibGUgLS1ub3cgbWF0cml4LXNhdG9yaQpgYGAKCuW4uOeUqOWPguaVsO+8mgoKYGBgYmFzaAojIOaMh+WumueJiOacrCAvIOWuieijheebruW9lSAvIOS4jeW8gCBzeXN0ZW1kIC8g6Ieq5a6a5LmJIGhvbWVzZXJ2ZXIg5LiO55m75b2V5pa55byPCnNoIGluc3RhbGwuc2ggLS12ZXJzaW9uIHYwLjEuMCAtLWluc3RhbGwtZGlyIH4vLmxvY2FsL2JpbiAtLW5vLXN5c3RlbWQgXAogIC0taG9tZXNlcnZlciBodHRwczovL21hdHJpeC5leGFtcGxlLmNvbSAtLWxvZ2luLW1ldGhvZCBwYXNzd29yZAoKc2ggaW5zdGFsbC5zaCAtLWZyb20tc291cmNlICAgICAgICAgICAgICAgICAgICAgIyDmnKzmnLrmnIkgUnVzdCDml7bku47mupDnoIHnvJbor5EKc2ggaW5zdGFsbC5zaCAtLXVuaW5zdGFsbCAgICAgICAgICAgICAgICAgICAgICAgIyDljbjovb0Kc2ggaW5zdGFsbC5zaCAtLWhlbHAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIyDlhajpg6jpgInpobkKYGBgCgo+IFNTTyDnmbvlvZXpnIDopoHmtY/op4jlmajog73orr/pl67lm57osIPlnLDlnYDvvIzot5HlnKjmnI3liqHlmajkuIrml7bopoHms6jmhI/vvIjop4HkuIrmlrki5YWz5LqOIFNTTyDnmbvlvZUi77yJ44CC5a655Zmo6YOo572y6KeB5LiL5pa5IERvY2tlciDnq6DoioLjgIIKCiMjIOaJi+WKqOi/kOihjAoK5bey57uP6KOF5aW95LqM6L+b5Yi244CB5oOz55u05o6l6LeR77yaCgpgYGBiYXNoCm1hdHJpeC1zYXRvcmkgXAogIC0taG9tZXNlcnZlciBodHRwczovL21vemlsbGEubW9kdWxhci5pbSBcCiAgLS1sb2dpbi1tZXRob2Qgc3NvIFwKICAtLWJpbmQgMC4wLjAuMDo1MTQwIFwKICAtLXNhdG9yaS10b2tlbiAn57uZa29pc2hp55So55qE5YWx5Lqr5a+G6ZKlJwojIOaMieaPkOekuuWcqOa1j+iniOWZqOWujOaIkCBTU08g55m75b2V77yM5LmL5ZCO5pyN5Yqh5bCx57uqCmBgYAoK5oiW6ICF5a+G56CB55m75b2V77yI5o2i5oiQ5Lu75oSP5pSv5oyB5a+G56CB55qE5pyN5Yqh5Zmo5Y2z5Y+v77yJ77yaCgpgYGBiYXNoCm1hdHJpeC1zYXRvcmkgXAogIC0taG9tZXNlcnZlciBodHRwczovL21hdHJpeC5leGFtcGxlLmNvbSBcCiAgLS1sb2dpbi1tZXRob2QgcGFzc3dvcmQgXAogIC0tdXNlcm5hbWUgbXlib3QgLS1wYXNzd29yZCAn5L2g55qE5a+G56CBJyBcCiAgLS1zYXRvcmktdG9rZW4gJ3NoYXJlZC1zZWNyZXQnCmBgYAoK5Lmf5pSv5oyB5YWo55So546v5aKD5Y+Y6YeP77yaCgpgYGBiYXNoCmV4cG9ydCBNQVRSSVhfSE9NRVNFUlZFUj1odHRwczovL21hdHJpeC5leGFtcGxlLmNvbQpleHBvcnQgTUFUUklYX0xPR0lOX01FVEhPRD1wYXNzd29yZApleHBvcnQgTUFUUklYX1VTRVJOQU1FPW15Ym90CmV4cG9ydCBNQVRSSVhfUEFTU1dPUkQ9J+S9oOeahOWvhueggScKZXhwb3J0IFNBVE9SSV9UT0tFTj0nc2hhcmVkLXNlY3JldCcKbWF0cml4LXNhdG9yaQpgYGAKCuehruiupOacjeWKoeato+W4uO+8mgoKYGBgYmFzaApjdXJsIGh0dHA6Ly8xMjcuMC4wLjE6NTE0MC9oZWFsdGh6ICAgIyAtPiBvawpgYGAKCiMjIEtvaXNoaSDkvqfphY3nva4KCuWuieijheacgOaWsOeJiCBgYWRhcHRlci1zYXRvcmlg77yI6KaB5rGCIEtvaXNoaSBgXjQuMTguNmDvvInvvJoKCmBgYGJhc2gKbnBtIGkgQGtvaXNoaWpzL3BsdWdpbi1hZGFwdGVyLXNhdG9yaQpgYGAKCmBgYHRzCmltcG9ydCBzYXRvcmkgZnJvbSAnQGtvaXNoaWpzL3BsdWdpbi1hZGFwdGVyLXNhdG9yaScKCmN0eC5wbHVnaW4oc2F0b3JpLCB7CiAgZW5kcG9pbnQ6ICdodHRwOi8vMTI3LjAuMC4xOjUxNDAnLCAgLy8gbWF0cml4LXNhdG9yaSDlnLDlnYAKICB0b2tlbjogJ+e7mWtvaXNoaeeUqOeahOWFseS6q+WvhumSpScsICAgICAgIC8vIOS4jiAtLXNhdG9yaS10b2tlbiDkuIDoh7QKfSkKYGBgCgrkuYvlkI7mioogYm90IOmCgOivt+i/m+aIv+mXtO+8iGAvaW52aXRlIEB5b3VyLWJvdDpzZXJ2ZXJg77yJ77yM5Zyo5oi/6Ze06YeM5Y+R5raI5oGv77yMS29pc2hpIOWwseiDveaUtuWIsOW5tuWbnuW6lOOAggoKIyMgRG9ja2VyCgpgYGBiYXNoCmRvY2tlciBydW4gLWQgLS1uYW1lIG1hdHJpeC1zYXRvcmkgXAogIC1wIDUxNDA6NTE0MCBcCiAgLWUgTUFUUklYX0hPTUVTRVJWRVI9aHR0cHM6Ly9tYXRyaXguZXhhbXBsZS5jb20gXAogIC1lIE1BVFJJWF9MT0dJTl9NRVRIT0Q9cGFzc3dvcmQgXAogIC1lIE1BVFJJWF9VU0VSTkFNRT1teWJvdCBcCiAgLWUgTUFUUklYX1BBU1NXT1JEPSfkvaDnmoTlr4bnoIEnIFwKICAtZSBTQVRPUklfVE9LRU49J3NoYXJlZC1zZWNyZXQnIFwKICAtdiBtYXRyaXgtc2F0b3JpLWRhdGE6L2FwcC9kYXRhIFwKICBnaGNyLmlvL2ZseTE5MTkvbWF0cml4LXNhdG9yaTpsYXRlc3QKYGBgCgpTU08g55m75b2V5Zyo5a655Zmo6YeM55So6LW35p2l6bq754Om77yI5Zue6LCD6KaB6IO96KKr5rWP6KeI5Zmo6K6/6Zeu77yJ77yMKirlu7rorq7lhYjlnKjlrr/kuLvmnLrnlKggYHNzb2Ag55m75b2V5LiA5qyhKirvvIzmiornlJ/miJDnmoQgYGRhdGEvY3JlZGVudGlhbHMuanNvbmAg5oyC6L296L+b5a655Zmo77yM5LmL5ZCO5a655Zmo5Lya55So57yT5a2Y5Yet5o2u6Ieq5Yqo5ZCv5Yqo44CCCgojIyDphY3nva7lj4LogIMKCnwg5Y+C5pWwIHwg546v5aKD5Y+Y6YePIHwg6buY6K6k5YC8IHwg6K+05piOIHwKfCAtLS0gfCAtLS0gfCAtLS0gfCAtLS0gfAp8IGAtLWhvbWVzZXJ2ZXJgIHwgYE1BVFJJWF9IT01FU0VSVkVSYCB8IGBodHRwOi8vbG9jYWxob3N0OjgwMDhgIHwgaG9tZXNlcnZlciBVUkwgfAp8IGAtLWxvZ2luLW1ldGhvZGAgfCBgTUFUUklYX0xPR0lOX01FVEhPRGAgfCBgYXV0b2AgfCBgYXV0by9wYXNzd29yZC90b2tlbi9zc28vYXBwbGljYXRpb25zZXJ2aWNlL2FjY2Vzc3Rva2VuYCB8CnwgYC0tYWNjZXNzLXRva2VuYCB8IGBNQVRSSVhfQUNDRVNTX1RPS0VOYCB8IOepuiB8IOW3suaciSBhY2Nlc3MgdG9rZW4gfAp8IGAtLXVzZXJuYW1lYCB8IGBNQVRSSVhfVVNFUk5BTUVgIHwg56m6IHwg5a+G56CB55m75b2V55So5oi35ZCNIHwKfCBgLS1wYXNzd29yZGAgfCBgTUFUUklYX1BBU1NXT1JEYCB8IOepuiB8IOWvhueggeeZu+W9leWvhueggSB8CnwgYC0tbG9naW4tdG9rZW5gIHwgYE1BVFJJWF9MT0dJTl9UT0tFTmAgfCDnqbogfCBTU08g5Zue6LCD55qEIGxvZ2luVG9rZW4gfAp8IGAtLWRldmljZS1pZGAgfCBgTUFUUklYX0RFVklDRV9JRGAgfCDnqbogfCDnmbvlvZXorr7lpIcgSUTvvIjlj6/pgInvvIkgfAp8IGAtLXVzZXItaWRgIHwgYE1BVFJJWF9VU0VSX0lEYCB8IOiHquWKqOaOoua1iyB8IGJvdCDnmoQgTWF0cml4IElEIHwKfCBgLS1hcy10b2tlbmAgfCBgTUFUUklYX0FTX1RPS0VOYCB8IOepuiB8IGFwcHNlcnZpY2UgdG9rZW4gfAp8IGAtLXNzby1jYWxsYmFjay1iaW5kYCB8IGBNQVRSSVhfU1NPX0NBTExCQUNLX0JJTkRgIHwgYDEyNy4wLjAuMTo4MDg4YCB8IFNTTyDmnKzlnLDlm57osIPnm5HlkKwgfAp8IGAtLXNzby1yZWRpcmVjdC11cmlgIHwgYE1BVFJJWF9TU09fUkVESVJFQ1RfVVJJYCB8IOiHquWKqCB8IFNTTyDlr7nlpJblm57osIMgVVJJIHwKfCBgLS1iaW5kYCB8IGBTQVRPUklfQklORGAgfCBgMTI3LjAuMC4xOjUxNDBgIHwgU2F0b3JpIOacjeWKoeebkeWQrOWcsOWdgCB8CnwgYC0tc2F0b3JpLXRva2VuYCB8IGBTQVRPUklfVE9LRU5gIHwg56m6IHwg5a6i5oi356uv5YWx5Lqr5a+G6ZKl77yM56m65YiZ5LiN6Ym05p2D77yI5YWs572R5Yqh5b+F6K6+572u77yJIHwKfCBgLS1wYXRoYCB8IGBTQVRPUklfUEFUSGAgfCDnqbogfCDot6/lvoTliY3nvIDvvIzlpoIgYG1hdHJpeGAg4oaSIGAvbWF0cml4L3YxL2V2ZW50c2AgfAp8IGAtLXN5bmMtdGltZW91dGAgfCBgTUFUUklYX1NZTkNfVElNRU9VVGAgfCBgMzAwMDBgIHwgYC9zeW5jYCDplb/ova7or6LotoXml7bvvIjmr6vnp5LvvIkgfAp8IGAtLXN0YXRlLWRpcmAgfCBgTUFUUklYX1NUQVRFX0RJUmAgfCBgLi9kYXRhYCB8IOWHreaNruS4juWQjOatpeS9jeeCueebruW9lSB8CnwgYC0tbG9nYCAvIGBSVVNUX0xPR2AgfCBgUlVTVF9MT0dgIHwgYGluZm9gIHwg5pel5b+X57qn5YirIHwKCiMjIOW3sumqjOivgSAvIOmZkOWItgoKLSAqKjI4IOS4qua1i+ivleWFqOmDqOmAmui/hyoq77yaMTgg5Y2V5YWDICsgNyDnmbvlvZXmlrnlvI/pm4bmiJDvvIhwYXNzd29yZCAvIHRva2VuIC8gYXBwc2VydmljZSAvIGFjY2Vzcy10b2tlbiAvIGF1dG8gLyBmbG93cyDmjqLmtYsgLyDlh63mja7nvJPlrZjvvIkrIDMg5pyN5Yqh56uv6ZuG5oiQ77yIV1MgUkVBRFnjgIHkuovku7bmjqjpgIHjgIFQSU5HLVBPTkfjgIFtZXNzYWdlLmNyZWF0ZSDosIPnlKjpk77jgIHpibTmnYPvvInjgILnmbvlvZXmtYvor5XnlKggbW9jayBob21lc2VydmVyIOmqjOivgeecn+WuniBIVFRQIOS6pOS6kuOAggotICoq56uv5Yiw56uv5Yqg5a+G77yIRTJFRe+8ieaaguS4jeaUr+aMgSoq77ya5Yqg5a+G5oi/6Ze055qEIGBtLnJvb20uZW5jcnlwdGVkYCDkuovku7bkvJrooqvlv73nlaXlubbmiZPljbDorablkYrjgILopoHmlK/mjIHpnIDpm4bmiJAgb2xtL21hY2hpbmUg6Kej5a+G77yI5aSN5p2C5bqm5ZKM5L2T56ev5aSn5bmF5LiK5Y2H77yJ44CCCi0g5Y+N5bqU5Yig6Zmk77yIYHJlYWN0aW9uLmRlbGV0ZS9jbGVhcmDvvInpnIDopoEgTWF0cml4IOS+p+eahOWPjeW6lOS6i+S7tiBJRO+8jOiAjCBTYXRvcmkg6K+lIGFjdGlvbiDkuI3luKbvvIznm67liY3mmK/nqbrmk43kvZzjgIIKCiMjIOW8gOWPkQoKYGBgYmFzaApjYXJnbyBidWlsZCAtLXJlbGVhc2UKY2FyZ28gdGVzdCAgICAgICAgICAgICAgIyAxOCArIDcgKyAzID0gMjgKY2FyZ28gY2xpcHB5IC0tYWxsLXRhcmdldHMKY2FyZ28gZm10CmBgYAoKIyMgTGljZW5zZQoKTUlUCg==
+# matrix-satori
+
+用 **Rust** 写的 [Satori 协议](https://satori.js.org/)服务端，后端对接 **Matrix**，让你把任意 Matrix 账号接到 **Koishi**（最新版 4.18+）里，像用其他适配器一样使用。
+
+```
+Koishi (adapter-satori)  ──WebSocket/HTTP──▶  matrix-satori  ──Matrix CS API──▶  任意 homeserver
+```
+
+## 特性
+
+- **内置所有主流 Matrix 登录方式**，运行时探测服务器支持的 flows 自动适配，不写死任何 homeserver（详见下方"登录方式"）
+- 完整实现 Satori 网关：`/v1/events`（READY / IDENTIFY / PING-PONG / EVENT，opcode 0/1/2/3/4/5）
+- HTTP API：`message.create/update/delete/get/list`、`channel.*`、`guild.*`、`user.get`、`login.get`、`reaction.*` 等
+- Matrix 长轮询 `/sync`，断线自动重连，同步位点 + 凭据落盘（重启不丢消息、不用重复登录）
+- Matrix 事件 → Satori 事件：文本、@提及、图片/音频/视频/文件、引用回复、表情回应、成员加入/退出、房间改名、编辑、撤回
+- Satori Element ↔ Matrix HTML 双向转换（`<at>`、`<img>`、`<quote>`、`<br>`、`<emoji>`…）
+- Matrix 媒体 `mxc://` 自动转换成 HTTP URL
+- 令牌鉴权、非 root 容器、多架构 Docker 镜像、GitHub Actions 自动发版
+
+## 登录方式（全支持）
+
+程序启动时会 `GET /_matrix/client/v3/login` 探测服务器支持的登录方式，再按你的配置选择。用 `--login-method`（或 `MATRIX_LOGIN_METHOD`）显式指定，默认 `auto` 自动判断：
+
+| 方式 | `--login-method` | 需要的参数 | 说明 |
+| --- | --- | --- | --- |
+| 直接 access token | `accesstoken` | `--access-token` | 最快。已有 token 时用，跳过登录 |
+| 密码登录 | `password` | `--username` `--password` | `m.login.password`，matrix.org / 自建 Synapse 常用 |
+| Token 登录 | `token` | `--login-token` | `m.login.token`，用 SSO 回调产生的 loginToken 换 token |
+| SSO 网页登录 | `sso` | （无，交互式） | `m.login.sso`，**程序内置本地回调服务**，打印链接让你浏览器登录，自动换取并保存 token |
+| Appservice | `applicationservice` | `--as-token` `--user-id` | `m.login.application_service`，应用服务场景 |
+
+`auto` 的优先级：`--login-token` > 用户名+密码 > appservice > 服务器支持 SSO 则走交互式 SSO > 报错并提示。
+
+登录成功后凭据缓存到 `<state-dir>/credentials.json`（记录 homeserver），下次启动自动复用；换服务器不会误用旧 token。
+
+### 关于 SSO 登录（mozilla.modular.im 这类）
+
+有两条路，任选其一：
+
+**方式 A —— 让程序全权处理（推荐）**
+
+```
+--login-method sso
+```
+
+程序会在 `--sso-callback-bind`（默认 `127.0.0.1:8088`）起一个临时回调服务，打印形如下面的链接：
+
+```
+请在浏览器打开以下链接完成 SSO 登录：
+
+  https://mozilla.modular.im/_matrix/client/v3/login/sso/redirect?redirectUrl=http%3A%2F%2F127.0.0.1%3A8088%2Fsatori-sso-callback
+```
+
+浏览器完成登录（Firefox Account / GitHub / Google 等）后，homeserver 会带着 `loginToken` 跳回本地回调，程序自动换取 access token 并缓存，然后继续启动。**注意**：回调地址必须能被你的浏览器访问到；如果程序跑在服务器上，把 `--sso-redirect-uri` 设成公网可达、并指向本机回调的地址（或用 SSH 端口转发）。
+
+**方式 B —— 自己从网页客户端复制 token**
+
+Mozilla 官方给 bot 取 token 的做法（见 [Taskcluster 文档](https://firefox-ci-tc.services.mozilla.com/docs/manual/deploying/matrix)）：
+
+1. 无痕窗口打开 [chat.mozilla.org](https://chat.mozilla.org/)，用 SSO 登录 bot 账号；
+2. 头像 → **Settings** → **Help & About** → 拉到底部 **Access Token** 复制；
+3. **不要点退出登录**（登出会让 token 失效），直接关掉无痕窗口；
+4. 用 `--access-token 'syt_...'` 启动本程序。
+
+> `mozilla.modular.im` 的 `/.well-known/matrix/client` 是 404，务必**显式写 homeserver URL**。`chat.mozilla.org` 只是网页客户端，不是 homeserver API 地址。
+
+## 一键安装（推荐）
+
+一行命令自动下载对应平台的预编译二进制、校验 SHA256、生成配置与 systemd 单元：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/FLY1919/matrix-satori/main/install.sh | sh
+```
+
+安装脚本会：
+- 自动识别系统/架构（Linux x86_64 / arm64 / armv7、macOS Intel / Apple Silicon、Windows x86_64），从最新 Release 下载对应包并校验 SHA256
+- 二进制默认装到 `/usr/local/bin`（非 root 装到 `~/.local/bin`）
+- 生成 `matrix-satori.env` 配置模板（随机 Satori token、homeserver、登录方式等）和 systemd 单元
+- root 且检测到 systemd 时，提示用 `systemctl enable --now matrix-satori` 启动
+
+装完**先编辑配置**再启动：
+
+```bash
+# root 默认在 /etc/matrix-satori/matrix-satori.env，非 root 在 ~/.config/matrix-satori/
+sudo nano /etc/matrix-satori/matrix-satori.env
+# 填入 MATRIX_HOMESERVER、登录凭据，按需改 SATORI_BIND / SATORI_TOKEN
+sudo systemctl enable --now matrix-satori
+```
+
+常用参数：
+
+```bash
+# 指定版本 / 安装目录 / 不开 systemd / 自定义 homeserver 与登录方式
+sh install.sh --version v0.1.0 --install-dir ~/.local/bin --no-systemd \
+  --homeserver https://matrix.example.com --login-method password
+
+sh install.sh --from-source                     # 本机有 Rust 时从源码编译
+sh install.sh --uninstall                       # 卸载
+sh install.sh --help                            # 全部选项
+```
+
+> SSO 登录需要浏览器能访问回调地址，跑在服务器上时要注意（见上方"关于 SSO 登录"）。容器部署见下方 Docker 章节。
+
+## 手动运行
+
+已经装好二进制、想直接跑：
+
+```bash
+matrix-satori \
+  --homeserver https://mozilla.modular.im \
+  --login-method sso \
+  --bind 0.0.0.0:5140 \
+  --satori-token '给koishi用的共享密钥'
+# 按提示在浏览器完成 SSO 登录，之后服务就绪
+```
+
+或者密码登录（换成任意支持密码的服务器即可）：
+
+```bash
+matrix-satori \
+  --homeserver https://matrix.example.com \
+  --login-method password \
+  --username mybot --password '你的密码' \
+  --satori-token 'shared-secret'
+```
+
+也支持全用环境变量：
+
+```bash
+export MATRIX_HOMESERVER=https://matrix.example.com
+export MATRIX_LOGIN_METHOD=password
+export MATRIX_USERNAME=mybot
+export MATRIX_PASSWORD='你的密码'
+export SATORI_TOKEN='shared-secret'
+matrix-satori
+```
+
+确认服务正常：
+
+```bash
+curl http://127.0.0.1:5140/healthz   # -> ok
+```
+
+## Koishi 侧配置
+
+安装最新版 `adapter-satori`（要求 Koishi `^4.18.6`）：
+
+```bash
+npm i @koishijs/plugin-adapter-satori
+```
+
+```ts
+import satori from '@koishijs/plugin-adapter-satori'
+
+ctx.plugin(satori, {
+  endpoint: 'http://127.0.0.1:5140',  // matrix-satori 地址
+  token: '给koishi用的共享密钥',       // 与 --satori-token 一致
+})
+```
+
+之后把 bot 邀请进房间（`/invite @your-bot:server`），在房间里发消息，Koishi 就能收到并回应。
+
+## Docker
+
+```bash
+docker run -d --name matrix-satori \
+  -p 5140:5140 \
+  -e MATRIX_HOMESERVER=https://matrix.example.com \
+  -e MATRIX_LOGIN_METHOD=password \
+  -e MATRIX_USERNAME=mybot \
+  -e MATRIX_PASSWORD='你的密码' \
+  -e SATORI_TOKEN='shared-secret' \
+  -v matrix-satori-data:/app/data \
+  ghcr.io/fly1919/matrix-satori:latest
+```
+
+SSO 登录在容器里用起来麻烦（回调要能被浏览器访问），**建议先在宿主机用 `sso` 登录一次**，把生成的 `data/credentials.json` 挂载进容器，之后容器会用缓存凭据自动启动。
+
+## 配置参考
+
+| 参数 | 环境变量 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `--homeserver` | `MATRIX_HOMESERVER` | `http://localhost:8008` | homeserver URL |
+| `--login-method` | `MATRIX_LOGIN_METHOD` | `auto` | `auto/password/token/sso/applicationservice/accesstoken` |
+| `--access-token` | `MATRIX_ACCESS_TOKEN` | 空 | 已有 access token |
+| `--username` | `MATRIX_USERNAME` | 空 | 密码登录用户名 |
+| `--password` | `MATRIX_PASSWORD` | 空 | 密码登录密码 |
+| `--login-token` | `MATRIX_LOGIN_TOKEN` | 空 | SSO 回调的 loginToken |
+| `--device-id` | `MATRIX_DEVICE_ID` | 空 | 登录设备 ID（可选） |
+| `--user-id` | `MATRIX_USER_ID` | 自动探测 | bot 的 Matrix ID |
+| `--as-token` | `MATRIX_AS_TOKEN` | 空 | appservice token |
+| `--sso-callback-bind` | `MATRIX_SSO_CALLBACK_BIND` | `127.0.0.1:8088` | SSO 本地回调监听 |
+| `--sso-redirect-uri` | `MATRIX_SSO_REDIRECT_URI` | 自动 | SSO 对外回调 URI |
+| `--bind` | `SATORI_BIND` | `127.0.0.1:5140` | Satori 服务监听地址 |
+| `--satori-token` | `SATORI_TOKEN` | 空 | 客户端共享密钥，空则不鉴权（公网务必设置） |
+| `--path` | `SATORI_PATH` | 空 | 路径前缀，如 `matrix` → `/matrix/v1/events` |
+| `--sync-timeout` | `MATRIX_SYNC_TIMEOUT` | `30000` | `/sync` 长轮询超时（毫秒） |
+| `--state-dir` | `MATRIX_STATE_DIR` | `./data` | 凭据与同步位点目录 |
+| `--log` / `RUST_LOG` | `RUST_LOG` | `info` | 日志级别 |
+
+## 已验证 / 限制
+
+- **28 个测试全部通过**：18 单元 + 7 登录方式集成（password / token / appservice / access-token / auto / flows 探测 / 凭据缓存）+ 3 服务端集成（WS READY、事件推送、PING-PONG、message.create 调用链、鉴权）。登录测试用 mock homeserver 验证真实 HTTP 交互。
+- **端到端加密（E2EE）暂不支持**：加密房间的 `m.room.encrypted` 事件会被忽略并打印警告。要支持需集成 olm/machine 解密（复杂度和体积大幅上升）。
+- 反应删除（`reaction.delete/clear`）需要 Matrix 侧的反应事件 ID，而 Satori 该 action 不带，目前是空操作。
+
+## 开发
+
+```bash
+cargo build --release
+cargo test              # 18 + 7 + 3 = 28
+cargo clippy --all-targets
+cargo fmt
+```
+
+## License
+
+MIT
