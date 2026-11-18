@@ -66,40 +66,62 @@ Mozilla 官方给 bot 取 token 的做法（见 [Taskcluster 文档](https://fir
 
 ## 一键安装（推荐）
 
-一行命令自动下载对应平台的预编译二进制、校验 SHA256、生成配置与 systemd 单元：
+自动下载对应平台的预编译二进制、校验 SHA256、生成配置与启动单元。脚本内置** GitHub 加速源回退**，国内网络可用。
+
+### Linux / macOS
 
 ```bash
+# 国内推荐用 jsdelivr CDN（raw.githubusercontent.com 常被重置）：
+curl -fsSL https://cdn.jsdelivr.net/gh/FLY1919/matrix-satori@main/install.sh | sh
+
+# 网络条件好也可用原始地址：
 curl -fsSL https://raw.githubusercontent.com/FLY1919/matrix-satori/main/install.sh | sh
 ```
 
+### Windows（PowerShell，无需 Git Bash / sh）
+
+```powershell
+iwr https://cdn.jsdelivr.net/gh/FLY1919/matrix-satori@main/install.ps1 -OutFile install.ps1
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+> Windows 原生没有 `sh`，所以单独提供 `install.ps1`。二进制装到 `%LOCALAPPDATA%\matrix-satori\bin`，配置在 `%APPDATA%\matrix-satori\`，并生成一个读取配置后启动的 `start-matrix-satori.ps1`。
+
 安装脚本会：
-- 自动识别系统/架构（Linux x86_64 / arm64 / armv7、macOS Intel / Apple Silicon、Windows x86_64），从最新 Release 下载对应包并校验 SHA256
-- 二进制默认装到 `/usr/local/bin`（非 root 装到 `~/.local/bin`）
-- 生成 `matrix-satori.env` 配置模板（随机 Satori token、homeserver、登录方式等）和 systemd 单元
-- root 且检测到 systemd 时，提示用 `systemctl enable --now matrix-satori` 启动
+- 自动识别系统/架构（Linux x86_64 / arm64 / armv7、macOS Intel / Apple Silicon、Windows x86_64），下载对应 Release 包并校验 SHA256
+- 下载/API 查询失败时**自动回退到国内加速源**（gh-proxy / ghfast / jsdelivr）
+- 二进制默认装到 `/usr/local/bin`（非 root 装到 `~/.local/bin`；Windows 见上）
+- 生成配置模板（随机 Satori token、homeserver、登录方式等）；Linux root + systemd 时另生成服务单元
+- **仓库还没发 Release 时**给出明确提示，并可用 `--from-source` 从源码编译（项目内置 rsproxy 镜像）
 
 装完**先编辑配置**再启动：
 
 ```bash
-# root 默认在 /etc/matrix-satori/matrix-satori.env，非 root 在 ~/.config/matrix-satori/
+# Linux root 默认 /etc/matrix-satori/matrix-satori.env，非 root 在 ~/.config/matrix-satori/
 sudo nano /etc/matrix-satori/matrix-satori.env
 # 填入 MATRIX_HOMESERVER、登录凭据，按需改 SATORI_BIND / SATORI_TOKEN
 sudo systemctl enable --now matrix-satori
 ```
 
-常用参数：
+### 排障自检
+
+网络报错、装不上时先跑自检（不安装、不改配置，只看工具/平台/Release 状态/镜像连通性）：
 
 ```bash
-# 指定版本 / 安装目录 / 不开 systemd / 自定义 homeserver 与登录方式
-sh install.sh --version v0.1.0 --install-dir ~/.local/bin --no-systemd \
-  --homeserver https://matrix.example.com --login-method password
-
-sh install.sh --from-source                     # 本机有 Rust 时从源码编译
-sh install.sh --uninstall                       # 卸载
-sh install.sh --help                            # 全部选项
+sh install.sh --doctor
 ```
 
-> SSO 登录需要浏览器能访问回调地址，跑在服务器上时要注意（见上方"关于 SSO 登录"）。容器部署见下方 Docker 章节。
+### 常用参数
+
+```bash
+sh install.sh --version v0.1.0 --install-dir ~/.local/bin --no-systemd \
+  --homeserver https://matrix.example.com --login-method password
+sh install.sh --from-source              # 从源码编译（内置国内 cargo 镜像）
+sh install.sh --uninstall                # 卸载
+sh install.sh --help                     # 全部选项
+```
+
+> 首次发版前仓库没有 Release，一键下载会提示未发版——此时用 `--from-source`，或等维护者 `git tag v0.1.0` 触发 Release workflow 完成后再装。SSO 登录需浏览器能访问回调地址（见上方）。容器部署见下方 Docker 章节。
 
 ## 手动运行
 
