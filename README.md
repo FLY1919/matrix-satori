@@ -9,6 +9,7 @@ Koishi (adapter-satori)  ──WebSocket/HTTP──▶  matrix-satori  ──Mat
 ## 特性
 
 - **内置所有主流 Matrix 登录方式**，运行时探测服务器支持的 flows 自动适配，不写死任何 homeserver（详见下方"登录方式"）
+- **加密房间（E2EE）支持**：基于官方 `matrix-sdk` 自动解密 olm/megolm，加密房间的消息也能桥接到 Koishi（详见下方"加密房间"）
 - 完整实现 Satori 网关：`/v1/events`（READY / IDENTIFY / PING-PONG / EVENT，opcode 0/1/2/3/4/5）
 - HTTP API：`message.create/update/delete/get/list`、`channel.*`、`guild.*`、`user.get`、`login.get`、`reaction.*` 等
 - Matrix 长轮询 `/sync`，断线自动重连，同步位点 + 凭据落盘（重启不丢消息、不用重复登录）
@@ -32,6 +33,27 @@ Koishi (adapter-satori)  ──WebSocket/HTTP──▶  matrix-satori  ──Mat
 `auto` 的优先级：`--login-token` > 用户名+密码 > appservice > 服务器支持 SSO 则走交互式 SSO > 报错并提示。
 
 登录成功后凭据缓存到 `<state-dir>/credentials.json`（记录 homeserver），下次启动自动复用；换服务器不会误用旧 token。
+
+### 加密房间（E2EE）
+
+加密房间（`m.room.encrypted`）的消息现在**可以正常桥接**了。实现基于 Matrix 官方 Rust SDK（`matrix-sdk`），它对 olm/megolm 解密是透明的——程序会用官方范式单独登录一个设备、自动同步并解密消息，再转成 Satori 事件推给 Koishi。明文房间仍走原来的轻量 sync，两者互不干扰、不会重复。
+
+**启用条件**（重要）：E2EE 解密要求私钥在本进程里，所以只有"程序自己完成登录"的方式能开启：
+
+| 登录方式 | 加密房间 |
+| --- | --- |
+| 密码 `password` | ✅ 支持 |
+| Token `token`（SSO 回调的 loginToken） | ✅ 支持 |
+| `auto` 且提供了用户名密码或 loginToken | ✅ 支持 |
+| 直接 access token `accesstoken` | ❌ 不支持（该 token 的设备私钥不在这，无法解密） |
+| Appservice `applicationservice` | ❌ 不支持 |
+| 交互式 SSO `sso` | ⚠️ 首次登录会缓存凭据；缓存后如走 `auto` 且带凭据可解密，纯 `sso` 模式不启用 |
+
+启动日志会打印 `[e2ee] enabled` 或 `[e2ee] disabled` 及原因。
+
+**限制**：
+- 设备密钥当前保存在内存中（未启用 sqlite 持久化），**重启后无法解密历史消息**，只能解密重启后新收到、且对方重新分发的消息。需要长期保留历史解密能力可后续加持久化 store。
+- 未做跨设备验证（cross-signing / emoji 验证），默认接受未验证设备的消息（能解密，但不做信任校验）。
 
 ### 关于 SSO 登录（mozilla.modular.im 这类）
 
@@ -218,6 +240,19 @@ SSO 登录在容器里用起来麻烦（回调要能被浏览器访问），**�
 
 ## 配置参考
 
+**配置文件（TOML）**：首次启动会在 `<state-dir>/config.toml` 自动生成一份带注释的默认配置，编辑后重启生效。也可用 `--config <path>` / `MATRIX_CONFIG` 指定别的位置。优先级：**命令行参数 > 环境变量 > config.toml > 内置默认值**。
+
+```toml
+# <state-dir>/config.toml —— 首次启动自动生成
+homeserver = "https://matrix.example.com"
+login_method = "password"
+username = "mybot"
+password = "你的密码"
+bind = "127.0.0.1:5140"
+satori_token = "shared-secret"
+sync_timeout = 30000
+```
+
 | 参数 | 环境变量 | 默认值 | 说明 |
 | --- | --- | --- | --- |
 | `--homeserver` | `MATRIX_HOMESERVER` | `http://localhost:8008` | homeserver URL |
@@ -237,11 +272,12 @@ SSO 登录在容器里用起来麻烦（回调要能被浏览器访问），**�
 | `--sync-timeout` | `MATRIX_SYNC_TIMEOUT` | `30000` | `/sync` 长轮询超时（毫秒） |
 | `--state-dir` | `MATRIX_STATE_DIR` | `./data` | 凭据与同步位点目录 |
 | `--log` / `RUST_LOG` | `RUST_LOG` | `info` | 日志级别 |
+| `--config` | `MATRIX_CONFIG` | `<state-dir>/config.toml` | 配置文件路径 |
 
 ## 已验证 / 限制
 
-- **28 个测试全部通过**：18 单元 + 7 登录方式集成（password / token / appservice / access-token / auto / flows 探测 / 凭据缓存）+ 3 服务端集成（WS READY、事件推送、PING-PONG、message.create 调用链、鉴权）。登录测试用 mock homeserver 验证真实 HTTP 交互。
-- **端到端加密（E2EE）暂不支持**：加密房间的 `m.room.encrypted` 事件会被忽略并打印警告。要支持需集成 olm/machine 解密（复杂度和体积大幅上升）。
+- **38 个测试全部通过**：单元（元素解析 / 登录名 / TOML 配置自动创建·读取·CLI 覆盖）+ 7 登录方式集成（password / token / appservice / access-token / auto / flows 探测 / 凭据缓存）+ 3 服务端集成（WS READY、事件推送、PING-PONG、message.create 调用链、鉴权）。登录测试用 mock homeserver 验证真实 HTTP 交互。
+- **端到端加密（E2EE）已支持**：基于官方 `matrix-sdk` 自动解密 olm/megolm，加密房间消息能桥接到 Koishi。启用条件与限制见上方「加密房间（E2EE）」章节（密码 / token 登录可用；access token / appservice 不可用；重启后不保留历史消息密钥）。
 - 反应删除（`reaction.delete/clear`）需要 Matrix 侧的反应事件 ID，而 Satori 该 action 不带，目前是空操作。
 
 ## 开发

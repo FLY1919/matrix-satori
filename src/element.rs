@@ -4,6 +4,7 @@
 //!   `hello <at id="@u:s"/> world <img src="mxc://s/abc"/>`
 //! Matrix messages carry plain `body` plus optional `formatted_body` (HTML).
 
+use regex::Regex;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
@@ -31,243 +32,295 @@ impl Element {
         }
     }
 }
-
-/// Minimal, forgiving parser for Satori element strings.
-/// Unknown or malformed constructs degrade to literal text.
-pub fn parse(input: &str) -> Vec<Node> {
-    let mut nodes = Vec::new();
-    let mut text = String::new();
-    let bytes: Vec<char> = input.chars().collect();
-    let mut i = 0;
-
-    let flush = |text: &mut String, nodes: &mut Vec<Node>| {
-        if !text.is_empty() {
-            nodes.push(Node::Text(std::mem::take(text)));
-        }
-    };
-
-    while i < bytes.len() {
-        if bytes[i] == '<' {
-            // find closing '>', respecting quotes
-            let mut j = i + 1;
-            let mut quote: Option<char> = None;
-            while j < bytes.len() {
-                let c = bytes[j];
-                if let Some(q) = quote {
-                    if c == q {
-                        quote = None;
-                    }
-                } else if c == '"' || c == '\'' {
-                    quote = Some(c);
-                } else if c == '>' {
-                    break;
-                }
-                j += 1;
-            }
-            if j >= bytes.len() {
-                text.push('<');
-                i += 1;
-                continue;
-            }
-            let inner: String = bytes[i + 1..j].iter().collect();
-            let inner = inner.trim();
-
-            if let Some(close_tag) = inner.strip_prefix('/') {
-                // a closing tag; if it matches the last open element we just ignore here
-                // (the recursive parser consumes its own closing tags).
-                let _ = close_tag;
-                flush(&mut text, &mut nodes);
-                i = j + 1;
-                continue;
-            }
-
-            if inner.is_empty() || inner.starts_with('!') || inner.starts_with('?') {
-                text.extend(bytes[i..=j].iter());
-                i = j + 1;
-                continue;
-            }
-
-            let self_closing = inner.ends_with('/');
-            let content = if self_closing {
-                inner[..inner.len() - 1].trim_end()
-            } else {
-                inner
-            };
-
-            let (tag, attrs) = parse_tag(content);
-            if tag.is_empty() {
-                text.extend(bytes[i..=j].iter());
-                i = j + 1;
-                continue;
-            }
-
-            flush(&mut text, &mut nodes);
-            let mut el = Element::new(tag);
-            el.attrs = attrs;
-            el.self_closing = self_closing;
-
-            if self_closing {
-                nodes.push(Node::Element(el));
-                i = j + 1;
-            } else {
-                // find matching closing tag, nesting-aware
-                let (children, next) = parse_children(&bytes, j + 1, &el.tag);
-                el.children = children;
-                nodes.push(Node::Element(el));
-                i = next;
-            }
-        } else {
-            text.push(bytes[i]);
-            i += 1;
-        }
-    }
-    flush(&mut text, &mut nodes);
-    nodes
+/// Parse a Satori element string into a node tree.
+///
+/// Faithful port of the official `@satorijs/element` parser (`parse` in
+/// `packages/element/src/index.ts`): a regex tokenizer produces tokens,
+/// `fold_tokens` folds them into a tree using a stack, and `parse_tokens`
+/// builds the final nodes. Comments are dropped, text is unescaped, and
+/// attributes follow `key`, `no-key`, `key="value"` / `key='value'`.
+pub fn parse(source: &str) -> Vec<Node> {
+    let tokens = tokenize(source);
+    let folded = fold_tokens(&tokens);
+    parse_tokens(&folded)
 }
 
-fn parse_children(bytes: &[char], start: usize, tag: &str) -> (Vec<Node>, usize) {
-    let mut nodes = Vec::new();
-    let mut text = String::new();
-    let mut i = start;
-    let close_literal: Vec<char> = format!("</{}", tag).chars().collect();
+// Official: tagRegExp1 (context-free form)
+//   /(?<comment><!--[\s\S]*?-->)|(?<tag><(\/?)([^!\s>/]*)([^>]*?)\s*(\/?)>)/
+// Official: attrRegExp1
+//   /([^\s=]+)(?:="(?<value1>[^"]*)"|='(?<value2>[^']*)')?/g
+use std::sync::OnceLock;
 
-    while i < bytes.len() {
-        if bytes[i] == '<' && starts_with(bytes, i, &close_literal) {
-            // skip until '>'
-            let mut j = i;
-            while j < bytes.len() && bytes[j] != '>' {
-                j += 1;
-            }
-            if !text.is_empty() {
-                nodes.push(Node::Text(std::mem::take(&mut text)));
-            }
-            return (nodes, (j + 1).min(bytes.len()));
-        }
-        if bytes[i] == '<' {
-            let mut j = i + 1;
-            let mut quote: Option<char> = None;
-            while j < bytes.len() {
-                let c = bytes[j];
-                if let Some(q) = quote {
-                    if c == q {
-                        quote = None;
-                    }
-                } else if c == '"' || c == '\'' {
-                    quote = Some(c);
-                } else if c == '>' {
-                    break;
-                }
-                j += 1;
-            }
-            if j >= bytes.len() {
-                text.push('<');
-                i += 1;
-                continue;
-            }
-            let inner: String = bytes[i + 1..j].iter().collect();
-            let inner = inner.trim();
-            let self_closing = inner.ends_with('/');
-            let content = if self_closing {
-                inner[..inner.len() - 1].trim_end()
-            } else {
-                inner
-            };
-            let (child_tag, attrs) = parse_tag(content);
-            if !child_tag.is_empty() {
-                if !text.is_empty() {
-                    nodes.push(Node::Text(std::mem::take(&mut text)));
-                }
-                let mut el = Element::new(child_tag);
-                el.attrs = attrs;
-                el.self_closing = self_closing;
-                if self_closing {
-                    nodes.push(Node::Element(el));
-                    i = j + 1;
-                } else {
-                    let (kids, next) = parse_children(bytes, j + 1, &el.tag);
-                    el.children = kids;
-                    nodes.push(Node::Element(el));
-                    i = next;
-                }
-            } else {
-                text.extend(bytes[i..=j].iter());
-                i = j + 1;
-            }
-        } else {
-            text.push(bytes[i]);
-            i += 1;
-        }
-    }
-    if !text.is_empty() {
-        nodes.push(Node::Text(text));
-    }
-    (nodes, i)
+static TAG_RE: OnceLock<Regex> = OnceLock::new();
+static ATTR_RE: OnceLock<Regex> = OnceLock::new();
+
+fn tag_re() -> &'static Regex {
+    TAG_RE.get_or_init(|| {
+        Regex::new(r"(?P<comment><!--[\s\S]*?-->)|(?P<tag><(?P<close>/?)(?P<type>[^!\s>/]*)(?P<extra>[^>]*?)\s*(?P<empty>/?)>)").unwrap()
+    })
+}
+fn attr_re() -> &'static Regex {
+    ATTR_RE.get_or_init(|| {
+        Regex::new(r#"([^\s=]+)(?:="(?P<value1>[^"]*)"|='(?P<value2>[^']*)')?"#).unwrap()
+    })
 }
 
-fn starts_with(bytes: &[char], at: usize, pat: &[char]) -> bool {
-    if at + pat.len() > bytes.len() {
-        return false;
-    }
-    bytes[at..at + pat.len()] == *pat
+#[derive(Debug, Clone, PartialEq)]
+enum Position {
+    Open,
+    Close,
+    Empty,
 }
 
-fn parse_tag(content: &str) -> (String, HashMap<String, String>) {
-    let chars: Vec<char> = content.chars().collect();
-    let mut i = 0;
-    while i < chars.len() && !chars[i].is_whitespace() {
-        i += 1;
-    }
-    let tag: String = chars[..i].iter().collect();
-    let mut attrs = HashMap::new();
-    while i < chars.len() {
-        while i < chars.len() && chars[i].is_whitespace() {
-            i += 1;
-        }
-        if i >= chars.len() {
-            break;
-        }
-        let start = i;
-        while i < chars.len() && chars[i] != '=' && !chars[i].is_whitespace() {
-            i += 1;
-        }
-        let key: String = chars[start..i].iter().collect();
-        while i < chars.len() && chars[i].is_whitespace() {
-            i += 1;
-        }
-        if i >= chars.len() || chars[i] != '=' {
-            if !key.is_empty() {
-                attrs.insert(key, String::new());
-            }
+#[derive(Debug, Clone)]
+enum Token {
+    Text(String),
+    Angle {
+        name: String,
+        position: Position,
+        extra: String,
+        children: Vec<Token>,
+    },
+}
+
+/// Official `parse`'s tokenize loop + `parseContent`.
+fn tokenize(source: &str) -> Vec<Token> {
+    let mut tokens: Vec<Token> = Vec::new();
+    let mut rest = source;
+    let mut trim_start = true;
+
+    while let Some(cap) = tag_re().captures(rest) {
+        let whole = cap.get(0).unwrap();
+        // trimEnd = !curly ; we have no curly tokens, so always true.
+        parse_content(&rest[..whole.start()], trim_start, true, &mut tokens);
+        trim_start = true;
+        rest = &rest[whole.end()..];
+
+        // comment -> skip
+        if cap.name("comment").is_some() {
             continue;
         }
-        i += 1; // skip '='
-        while i < chars.len() && chars[i].is_whitespace() {
-            i += 1;
-        }
-        let mut value = String::new();
-        if i < chars.len() && (chars[i] == '"' || chars[i] == '\'') {
-            let q = chars[i];
-            i += 1;
-            while i < chars.len() && chars[i] != q {
-                value.push(chars[i]);
-                i += 1;
-            }
-            if i < chars.len() {
-                i += 1;
-            }
+
+        let close = cap
+            .name("close")
+            .map(|m| m.as_str() == "/")
+            .unwrap_or(false);
+        let empty = cap
+            .name("empty")
+            .map(|m| m.as_str() == "/")
+            .unwrap_or(false);
+        let typ = cap.name("type").map(|m| m.as_str()).unwrap_or("");
+        let extra = cap.name("extra").map(|m| m.as_str()).unwrap_or("");
+        let name = if typ.is_empty() {
+            "template".to_string()
         } else {
-            while i < chars.len() && !chars[i].is_whitespace() {
-                value.push(chars[i]);
-                i += 1;
-            }
-        }
-        if !key.is_empty() {
-            attrs.insert(key, html_unescape(&value));
-        }
+            typ.to_string()
+        };
+        let position = if close {
+            Position::Close
+        } else if empty {
+            Position::Empty
+        } else {
+            Position::Open
+        };
+        tokens.push(Token::Angle {
+            name,
+            position,
+            extra: extra.to_string(),
+            children: Vec::new(),
+        });
     }
-    (tag, attrs)
+
+    parse_content(rest, trim_start, true, &mut tokens);
+    tokens
 }
 
+/// Official `parseContent`: unescape + trim a single leading/trailing newline
+/// with surrounding whitespace, then push as a text token if non-empty.
+fn parse_content(raw: &str, trim_start: bool, trim_end: bool, out: &mut Vec<Token>) {
+    let mut text = official_unescape(raw);
+    if trim_start {
+        text = trim_newline_start(&text);
+    }
+    if trim_end {
+        text = trim_newline_end(&text);
+    }
+    if !text.is_empty() {
+        out.push(Token::Text(text));
+    }
+}
+
+// /^\s*\n\s*/ and /\s*\n\s*$/ — only strip whitespace that wraps a newline.
+fn trim_newline_start(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() && (bytes[i] as char).is_whitespace() {
+        i += 1;
+    }
+    // find a newline within the leading whitespace run
+    if let Some(nl) = s[..i].find('\n') {
+        let mut j = nl + 1;
+        while j < bytes.len() && (bytes[j] as char).is_whitespace() {
+            j += 1;
+        }
+        s[j..].to_string()
+    } else {
+        s.to_string()
+    }
+}
+fn trim_newline_end(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut j = bytes.len();
+    while j > 0 && (bytes[j - 1] as char).is_whitespace() {
+        j -= 1;
+    }
+    if let Some(nl_rel) = s[j..].rfind('\n') {
+        let nl = j + nl_rel;
+        let mut i = nl;
+        while i > 0 && (bytes[i - 1] as char).is_whitespace() {
+            i -= 1;
+        }
+        s[..i].to_string()
+    } else {
+        s.to_string()
+    }
+}
+
+/// Official `foldTokens`: reduce the flat token stream into a tree via a stack.
+/// On CLOSE, pop the stack while the top name matches. OPEN pushes a new frame;
+/// EMPTY/CONTINUE/text attach to the current frame.
+fn fold_tokens(tokens: &[Token]) -> Vec<Token> {
+    // Each frame: (name, children). Root is a synthetic "template" frame.
+    let mut stack: Vec<(String, Vec<Token>)> = vec![("template".to_string(), Vec::new())];
+
+    for tok in tokens {
+        match tok {
+            Token::Text(_)
+            | Token::Angle {
+                position: Position::Empty,
+                ..
+            } => {
+                stack.last_mut().unwrap().1.push(tok.clone());
+            }
+            Token::Angle {
+                position: Position::Close,
+                name,
+                ..
+            } => {
+                if stack.len() > 1 && stack.last().unwrap().0 == *name {
+                    // Pop the frame and write its collected children back into
+                    // the OPEN node we pushed into the parent frame. Official
+                    // JS does this via shared object references; Rust needs an
+                    // explicit assignment.
+                    let (_, children) = stack.pop().unwrap();
+                    if let Some(Token::Angle { children: slot, .. }) =
+                        stack.last_mut().unwrap().1.last_mut()
+                    {
+                        *slot = children;
+                    }
+                }
+            }
+            Token::Angle {
+                position: Position::Open,
+                name,
+                extra,
+                ..
+            } => {
+                // Attach the open token to the current frame, then descend into it.
+                let node = Token::Angle {
+                    name: name.clone(),
+                    position: Position::Open,
+                    extra: extra.clone(),
+                    children: Vec::new(),
+                };
+                stack.last_mut().unwrap().1.push(node);
+                stack.push((name.clone(), Vec::new()));
+            }
+        }
+    }
+
+    // Unwind: fold each frame's children into the pushed open node.
+    // Because we pushed children into frames by index, rebuild recursively.
+    // The root frame (index 0) holds the final tree.
+    rebuild_from_stack(stack)
+}
+
+/// The stack frames hold children separately from their parent node; walk from
+/// the innermost frame outward, attaching each frame's children to the last
+/// OPEN node pushed into the parent frame.
+fn rebuild_from_stack(mut stack: Vec<(String, Vec<Token>)>) -> Vec<Token> {
+    while stack.len() > 1 {
+        let (_, children) = stack.pop().unwrap();
+        let parent = stack.last_mut().unwrap();
+        if let Some(Token::Angle { children: slot, .. }) = parent.1.last_mut() {
+            *slot = children;
+        }
+    }
+    stack
+        .pop()
+        .map(|(_, children)| children)
+        .unwrap_or_default()
+}
+
+/// Official `parseTokens`: turn folded tokens into nodes. Text tokens become
+/// `Node::Text`; angle tokens become `Node::Element` with parsed attributes.
+fn parse_tokens(tokens: &[Token]) -> Vec<Node> {
+    let mut result = Vec::new();
+    for tok in tokens {
+        match tok {
+            Token::Text(t) => result.push(Node::Text(t.clone())),
+            Token::Angle {
+                name,
+                extra,
+                position,
+                children,
+            } => {
+                let attrs = parse_attr_string(extra);
+                let mut el = Element::new(name.clone());
+                el.attrs = attrs;
+                el.self_closing = *position == Position::Empty || children.is_empty();
+                el.children = parse_tokens(children);
+                result.push(Node::Element(el));
+            }
+        }
+    }
+    result
+}
+
+/// Official attribute loop using attrRegExp1:
+///   key="v" / key='v' -> unescape(v)
+///   key              -> "" (boolean true, stored as empty value)
+///   no-key           -> "" (boolean false under key without `no-`)
+/// Official stores JS booleans; our Element uses String values, so `true`
+/// becomes an empty string and `no-*` maps to the key without the prefix.
+fn parse_attr_string(extra: &str) -> HashMap<String, String> {
+    let mut attrs = HashMap::new();
+    for cap in attr_re().captures_iter(extra) {
+        let key = cap.get(1).map(|m| m.as_str()).unwrap_or("");
+        if key.is_empty() {
+            continue;
+        }
+        if let Some(v) = cap.name("value1").or_else(|| cap.name("value2")) {
+            attrs.insert(key.to_string(), official_unescape(v.as_str()));
+        } else if let Some(rest) = key.strip_prefix("no-") {
+            attrs.insert(rest.to_string(), String::new());
+        } else {
+            attrs.insert(key.to_string(), String::new());
+        }
+    }
+    attrs
+}
+
+/// Official `Element.unescape`, same order:
+///   &lt; &gt; &quot; &#\d+; &#xHEX; &(amp|#38|#x26);
+fn official_unescape(s: &str) -> String {
+    s.replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&apos;", "'")
+        .replace("&amp;", "&")
+}
 /// Serialize nodes back to a Satori element string.
 pub fn to_string(nodes: &[Node]) -> String {
     let mut out = String::new();
@@ -692,6 +745,51 @@ pub fn html_unescape(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn xml_attributes_unescaped() {
+        // Official unescape decodes &amp; / &quot; in attribute values.
+        let nodes = parse("<at id=\"a&amp;b\" name=\"&quot;Q&quot;\"/>");
+        match &nodes[0] {
+            Node::Element(el) => {
+                assert_eq!(el.attrs.get("id").unwrap(), "a&b");
+                assert_eq!(el.attrs.get("name").unwrap(), "\"Q\"");
+            }
+            _ => panic!("expected element"),
+        }
+    }
+
+    #[test]
+    fn xml_comment_dropped() {
+        // The official parser discards <!-- -->; the surrounding texts stay
+        // as separate text tokens (parseTokens does not merge them).
+        let nodes = parse("a<!-- note -->b");
+        assert_eq!(nodes, vec![Node::Text("a".into()), Node::Text("b".into())]);
+    }
+
+    #[test]
+    fn attr_boolean_and_no_prefix() {
+        // Official: bare key -> true (empty value here); `no-key` -> key=false.
+        let nodes = parse("<msg hello no-draft id=\"x\"/>");
+        match &nodes[0] {
+            Node::Element(el) => {
+                assert!(el.attrs.contains_key("hello"));
+                assert!(el.attrs.contains_key("draft"));
+                assert_eq!(el.attrs.get("id").unwrap(), "x");
+            }
+            _ => panic!("expected element"),
+        }
+    }
+
+    #[test]
+    fn numeric_entities_unescaped() {
+        // Official unescape handles &#39; / &apos; etc.
+        let nodes = parse("<at name=\"a&#39;b\"/>");
+        match &nodes[0] {
+            Node::Element(el) => assert_eq!(el.attrs.get("name").unwrap(), "a'b"),
+            _ => panic!("expected element"),
+        }
+    }
 
     #[test]
     fn parse_simple() {

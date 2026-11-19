@@ -6,6 +6,7 @@ use std::sync::Arc;
 use thiserror::Error;
 use tracing::debug;
 
+pub mod e2ee;
 pub mod types;
 pub use types::*;
 

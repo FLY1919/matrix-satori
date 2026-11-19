@@ -175,7 +175,7 @@ impl Bridge {
         }
     }
 
-    async fn emit_message(&self, room_id: &str, info: &EventInfo) {
+    pub(crate) async fn emit_message(&self, room_id: &str, info: &EventInfo) {
         // ignore our own echoes for message-created; client handles 'send' echo itself
         let is_self = info.sender == self.self_id;
         let content = matrix_to_satori(&info.content, &self.config.homeserver, &self.self_id);
