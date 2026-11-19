@@ -22,15 +22,30 @@ pub struct Bridge {
     room_names: tokio::sync::RwLock<HashMap<String, String>>,
 }
 
+/// Extract the localpart from a Matrix user id: `@fly_hx:knoten.chat` -> `fly_hx`.
+/// Koishi's status plugin reads `login.user.name`/`nick` to label the bot; leaving
+/// them empty shows a blank name (e.g. `[matrix] : 运行中`). Fall back to the full
+/// user id if the input is not in `@local:server` form.
+fn display_name_from_user_id(user_id: &str) -> String {
+    let rest = user_id.strip_prefix('@').unwrap_or(user_id);
+    let local = rest.split(':').next().unwrap_or(rest).trim();
+    if local.is_empty() {
+        user_id.to_string()
+    } else {
+        local.to_string()
+    }
+}
+
 impl Bridge {
     pub fn new(matrix: MatrixClient, config: Arc<Config>, self_id: String) -> Self {
+        let display_name = display_name_from_user_id(&self_id);
         let login = Login {
             sn: 1,
             adapter: "matrix".into(),
             user: Some(User {
                 id: self_id.clone(),
-                name: None,
-                nick: None,
+                name: Some(display_name.clone()),
+                nick: Some(display_name),
                 avatar: None,
                 discriminator: None,
                 is_bot: Some(true),
@@ -478,4 +493,28 @@ fn now_ms() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as i64)
         .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::display_name_from_user_id;
+
+    #[test]
+    fn display_name_from_regular_matrix_id() {
+        assert_eq!(display_name_from_user_id("@fly_hx:knoten.chat"), "fly_hx");
+    }
+
+    #[test]
+    fn display_name_from_id_with_server_port() {
+        assert_eq!(display_name_from_user_id("@bot:example.com:8448"), "bot");
+    }
+
+    #[test]
+    fn display_name_fallback_to_full_id() {
+        assert_eq!(
+            display_name_from_user_id("not-a-matrix-id"),
+            "not-a-matrix-id"
+        );
+        assert_eq!(display_name_from_user_id("@:server"), "@:server");
+    }
 }
