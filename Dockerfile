@@ -25,6 +25,7 @@ COPY src ./src
 RUN set -eu; \
     T=$(cat /tmp/rust_target); \
     cargo build --release --target "$T"; \
+    mkdir -p /out; \
     cp "target/$T/release/matrix-satori" /out/matrix-satori
 
 FROM alpine:3.20
