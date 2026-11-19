@@ -1,6 +1,9 @@
 # syntax=docker/dockerfile:1
 
-FROM --platform=$BUILDPLATFORM rust:1.83-alpine AS build
+# Use the latest stable 1.x: dependencies in Cargo.lock (e.g. icu_collections
+# 2.x via url/idna) require edition2024, stabilized in Rust 1.85. Pinning an
+# older toolchain here makes the cross-arch docker build fail to parse manifests.
+FROM --platform=$BUILDPLATFORM rust:1-alpine AS build
 ARG TARGETOS
 ARG TARGETARCH
 ARG TARGETVARIANT
