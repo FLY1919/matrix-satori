@@ -27,8 +27,12 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  # VERSION is only used for asset naming / the release tag.
   VERSION: ${{ github.event.inputs.tag || github.ref_name }}
-  REF: ${{ github.event.inputs.tag || github.ref_name }}
+  # REF is what every job checks out. Use the actual trigger ref so a
+  # workflow_dispatch on main builds the CURRENT code (incl. Dockerfile fixes),
+  # not the stale commit that a still-pointing tag refers to.
+  REF: ${{ github.ref }}
   BIN: matrix-satori
 
 jobs:
