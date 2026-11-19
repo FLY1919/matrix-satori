@@ -72,11 +72,27 @@ Mozilla 官方给 bot 取 token 的做法（见 [Taskcluster 文档](https://fir
 
 ### Linux
 
-```bash
-# 国内推荐用 jsdelivr CDN（raw.githubusercontent.com 常被重置）：
-curl -fsSL https://cdn.jsdelivr.net/gh/FLY1919/matrix-satori@main/install.sh | sh
+单个 CDN 在你的网络里可能被重置（连接被 reset）。用下面这段**多源自动回退**：它挨个试，哪个能拉到脚本就用哪个安装：
 
-# 网络条件好也可用原始地址：
+```bash
+for u in \
+ "https://gh-proxy.com/https://raw.githubusercontent.com/FLY1919/matrix-satori/main/install.sh" \
+ "https://ghproxy.net/https://raw.githubusercontent.com/FLY1919/matrix-satori/main/install.sh" \
+ "https://raw.githubusercontent.com/FLY1919/matrix-satori/main/install.sh" \
+ "https://fastly.jsdelivr.net/gh/FLY1919/matrix-satori@main/install.sh" \
+ "https://gcore.jsdelivr.net/gh/FLY1919/matrix-satori@main/install.sh" \
+ "https://cdn.jsdelivr.net/gh/FLY1919/matrix-satori@main/install.sh"; do
+  echo "尝试: $u"
+  curl -fsSL --connect-timeout 8 --max-time 25 "$u" -o /tmp/ms-install.sh 2>/dev/null \
+    && grep -q 'install_from_release' /tmp/ms-install.sh 2>/dev/null \
+    && { echo "成功: $u"; sh /tmp/ms-install.sh; break; } \
+    || echo "失败,换下一个"
+done
+```
+
+网络条件好时，也可以直接用原始地址：
+
+```bash
 curl -fsSL https://raw.githubusercontent.com/FLY1919/matrix-satori/main/install.sh | sh
 ```
 
