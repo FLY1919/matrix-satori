@@ -174,7 +174,7 @@ sh install.sh --uninstall                # 卸载
 sh install.sh --help                     # 全部选项
 ```
 
-> 首次发版前仓库没有 Release，一键下载会提示未发版——此时用 `--from-source`，或等维护者 `git tag v0.1.0` 触发 Release workflow 完成后再装。SSO 登录需浏览器能访问回调地址（见上方）。容器部署见下方 Docker 章节。
+> 脚本默认自动取**最新 Release**。若某个平台没有预编译包（如 macOS），一键下载会提示改用 `--from-source`。新版本由维护者 `git tag vX.Y.Z` 触发 Release workflow 自动编译发布。SSO 登录需浏览器能访问回调地址（见上方）。容器部署见下方 Docker 章节。
 
 ## 手动运行
 
