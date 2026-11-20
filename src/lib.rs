@@ -68,10 +68,15 @@ pub fn build_router(bridge: Arc<Bridge>, prefix: &str) -> Router {
     // dotted segments proved unreliable across builds; explicit paths are safe.
     for method in METHODS {
         let path = format!("{}/v1/{}", prefix, method);
-        router = router.route(
-            &path,
-            post(satori::api::api_handler).get(satori::api::api_handler),
-        );
+        if *method == "upload.create" {
+            // Upload uses multipart/form-data, not JSON.
+            router = router.route(&path, post(satori::api::upload_handler));
+        } else {
+            router = router.route(
+                &path,
+                post(satori::api::api_handler).get(satori::api::api_handler),
+            );
+        }
     }
 
     router.with_state(bridge)
@@ -80,16 +85,32 @@ pub fn build_router(bridge: Arc<Bridge>, prefix: &str) -> Router {
 /// Resolve Matrix credentials via the configured login flow, returning the
 /// effective config (with access_token/user_id filled in) and the credentials.
 pub async fn resolve_config(mut config: Config) -> anyhow::Result<(Config, Credentials)> {
-    // Reuse cached credentials for interactive methods unless an explicit token is given.
+    // Reuse locally cached credentials whenever the user supplied no fresh
+    // login material. This is especially important for SSO/password logins:
+    // without a cache the user would have to re-open a browser on every start.
+    // Direct access-token / appservice logins carry their own credentials and
+    // are intentionally excluded (there is nothing worth persisting).
     let has_explicit = !config.access_token.is_empty()
         || !config.login_token.is_empty()
         || (!config.username.is_empty() && !config.password.is_empty())
         || !config.as_token.is_empty();
-    if !has_explicit && config.login_method == config::LoginMethod::Auto {
+    let method_uses_cache = matches!(
+        config.login_method,
+        config::LoginMethod::Auto
+            | config::LoginMethod::Sso
+            | config::LoginMethod::Password
+            | config::LoginMethod::Token
+    );
+    if !has_explicit && method_uses_cache {
         if let Some(cached) = auth::load_credentials(&config) {
-            info!("using cached credentials for {}", cached.user_id);
+            info!(
+                "using cached credentials for {} (method={})",
+                cached.user_id, cached.method
+            );
             config.access_token = cached.access_token.clone();
-            config.user_id = cached.user_id.clone();
+            if config.user_id.is_empty() {
+                config.user_id = cached.user_id.clone();
+            }
             return Ok((config, cached));
         }
     }

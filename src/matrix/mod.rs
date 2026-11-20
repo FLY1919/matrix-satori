@@ -322,6 +322,145 @@ impl MatrixClient {
             .to_string())
     }
 
+    /// GET /_matrix/client/v1/rooms/{room}/relations/{event}/m.annotation/{type}
+    /// Returns the list of reaction/annotation events related to an event.
+    pub async fn relations(&self, room_id: &str, event_id: &str) -> Result<Vec<Value>> {
+        let v = self
+            .request(
+                self.http
+                    .get(format!(
+                        "{}/_matrix/client/v1/rooms/{}/relations/{}/m.annotation/m.reaction",
+                        self.base(),
+                        urlencoding(room_id),
+                        urlencoding(event_id)
+                    ))
+                    .bearer_auth(&self.config.access_token),
+            )
+            .await
+            .unwrap_or(Value::Null);
+        Ok(v.get("chunk")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default())
+    }
+
+    /// POST /_matrix/client/v3/createRoom -> new room id. `invitees` are Matrix user ids.
+    pub async fn create_room(&self, name: Option<&str>, invitees: &[String]) -> Result<String> {
+        let mut body = json!({});
+        if let Some(n) = name {
+            body["name"] = json!(n);
+        }
+        if !invitees.is_empty() {
+            body["invite"] = json!(invitees);
+        }
+        body["is_direct"] = json!(!invitees.is_empty());
+        let v = self
+            .request(
+                self.http
+                    .post(format!("{}/_matrix/client/v3/createRoom", self.base()))
+                    .bearer_auth(&self.config.access_token)
+                    .json(&body),
+            )
+            .await?;
+        Ok(v.get("room_id")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string())
+    }
+
+    /// POST /_matrix/client/v3/rooms/{room}/join
+    pub async fn join_room(&self, room_id: &str) -> Result<String> {
+        let v = self
+            .request(
+                self.http
+                    .post(format!(
+                        "{}/_matrix/client/v3/rooms/{}/join",
+                        self.base(),
+                        urlencoding(room_id)
+                    ))
+                    .bearer_auth(&self.config.access_token)
+                    .json(&json!({})),
+            )
+            .await?;
+        Ok(v.get("room_id")
+            .and_then(Value::as_str)
+            .unwrap_or(room_id)
+            .to_string())
+    }
+
+    /// POST /_matrix/client/v3/rooms/{room}/leave
+    pub async fn leave_room(&self, room_id: &str) -> Result<()> {
+        self.request(
+            self.http
+                .post(format!(
+                    "{}/_matrix/client/v3/rooms/{}/leave",
+                    self.base(),
+                    urlencoding(room_id)
+                ))
+                .bearer_auth(&self.config.access_token)
+                .json(&json!({})),
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// POST /_matrix/client/v3/rooms/{room}/invite
+    pub async fn invite_user(&self, room_id: &str, user_id: &str) -> Result<()> {
+        self.request(
+            self.http
+                .post(format!(
+                    "{}/_matrix/client/v3/rooms/{}/invite",
+                    self.base(),
+                    urlencoding(room_id)
+                ))
+                .bearer_auth(&self.config.access_token)
+                .json(&json!({"user_id": user_id})),
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// POST /_matrix/client/v3/rooms/{room}/kick
+    pub async fn kick_user(
+        &self,
+        room_id: &str,
+        user_id: &str,
+        reason: Option<&str>,
+    ) -> Result<()> {
+        let mut body = json!({"user_id": user_id});
+        if let Some(r) = reason {
+            body["reason"] = json!(r);
+        }
+        self.request(
+            self.http
+                .post(format!(
+                    "{}/_matrix/client/v3/rooms/{}/kick",
+                    self.base(),
+                    urlencoding(room_id)
+                ))
+                .bearer_auth(&self.config.access_token)
+                .json(&body),
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// PUT /_matrix/client/v3/rooms/{room}/state/m.room.name
+    pub async fn set_room_name(&self, room_id: &str, name: &str) -> Result<()> {
+        self.request(
+            self.http
+                .put(format!(
+                    "{}/_matrix/client/v3/rooms/{}/state/m.room.name",
+                    self.base(),
+                    urlencoding(room_id)
+                ))
+                .bearer_auth(&self.config.access_token)
+                .json(&json!({"name": name})),
+        )
+        .await?;
+        Ok(())
+    }
+
     pub fn config(&self) -> &Config {
         &self.config
     }

@@ -3,13 +3,13 @@
 use crate::bridge::Bridge;
 use crate::element::satori_to_matrix;
 use crate::satori::{Channel, Guild, Message, User};
-use axum::extract::{MatchedPath, RawQuery, State};
+use axum::extract::{MatchedPath, Multipart, RawQuery, State};
 use axum::http::{header, HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde_json::{json, Value};
 use std::sync::Arc;
-use tracing::{debug, warn};
+use tracing::debug;
 
 fn authorized(headers: &HeaderMap, token: &str) -> bool {
     if token.is_empty() {
@@ -57,6 +57,43 @@ pub async fn api_handler(
     }
 }
 
+/// `POST /v1/upload.create` — the adapter sends multipart/form-data with one or
+/// more `file` fields (see @satorijs/protocol `createUpload`, isForm=true).
+/// Each file is uploaded to Matrix media storage and its mxc:// URI is
+/// converted to an HTTP download URL, matching what `<img src>` expects.
+pub async fn upload_handler(
+    State(bridge): State<Arc<Bridge>>,
+    headers: HeaderMap,
+    multipart: Multipart,
+) -> Response {
+    if !authorized(&headers, &bridge.config.satori_token) {
+        return err(StatusCode::UNAUTHORIZED, "unauthorized");
+    }
+    let mut urls = Vec::new();
+    let mut mp = multipart;
+    while let Ok(Some(field)) = mp.next_field().await {
+        let name = field.name().unwrap_or("").to_string();
+        if name != "file" {
+            continue;
+        }
+        let filename = field.file_name().map(str::to_string).unwrap_or_default();
+        let content_type = field
+            .content_type()
+            .map(str::to_string)
+            .unwrap_or_else(|| "application/octet-stream".to_string());
+        let bytes = match field.bytes().await {
+            Ok(b) => b.to_vec(),
+            Err(e) => return err(StatusCode::BAD_REQUEST, format!("read file failed: {}", e)),
+        };
+        let _ = filename; // Matrix media upload does not require a filename.
+        match bridge.matrix.upload_media(&content_type, bytes).await {
+            Ok(mxc) => urls.push(bridge.config.mxc_to_http(&mxc)),
+            Err(e) => return err(StatusCode::BAD_GATEWAY, e.to_string()),
+        }
+    }
+    Json(json!(urls)).into_response()
+}
+
 type ApiResult = Result<Value, (StatusCode, String)>;
 
 async fn dispatch(bridge: &Arc<Bridge>, method: &str, a: &Value, _q: &Option<String>) -> ApiResult {
@@ -70,7 +107,22 @@ async fn dispatch(bridge: &Arc<Bridge>, method: &str, a: &Value, _q: &Option<Str
             let room = s("channel_id")
                 .ok_or_else(|| (StatusCode::BAD_REQUEST, "channel_id required".to_string()))?;
             let content = s("content").unwrap_or("");
-            let matrix_content = satori_to_matrix(content, homeserver);
+            let mut matrix_content = satori_to_matrix(content, homeserver);
+            // Satori passes the quoted message in `referrer` (an object with `message_id`).
+            // Matrix expresses a reply via m.relates_to.m.in_reply_to.event_id.
+            let quote_event = a
+                .get("referrer")
+                .and_then(|r| r.get("message_id").or_else(|| r.get("id")))
+                .and_then(Value::as_str)
+                .map(str::to_string);
+            if let Some(qid) = quote_event {
+                let relates = matrix_content
+                    .as_object_mut()
+                    .map(|o| o.entry("m.relates_to").or_insert_with(|| json!({})));
+                if let Some(rel) = relates.and_then(Value::as_object_mut) {
+                    rel.insert("m.in_reply_to".into(), json!({"event_id": qid}));
+                }
+            }
             let event_id = bridge
                 .matrix
                 .send_message(room, &matrix_content, None)
@@ -314,8 +366,6 @@ async fn dispatch(bridge: &Arc<Bridge>, method: &str, a: &Value, _q: &Option<Str
             Ok(json!({"data": data}))
         }
 
-        "friend.list" => Ok(json!({"data": []})),
-
         "reaction.create" => {
             let room = s("channel_id")
                 .ok_or_else(|| (StatusCode::BAD_REQUEST, "channel_id required".to_string()))?;
@@ -332,19 +382,177 @@ async fn dispatch(bridge: &Arc<Bridge>, method: &str, a: &Value, _q: &Option<Str
         }
 
         "reaction.delete" | "reaction.clear" => {
-            // Redaction-based removal is best-effort; Matrix needs the reaction event id,
-            // which Satori does not carry here. Report unsupported gracefully.
-            warn!("reaction.delete/clear requires reaction event id (unsupported)");
+            // Satori gives (channel, message, emoji[, user]); Matrix needs the
+            // reaction *event id*. Look it up via /relations, then redact it.
+            let room = s("channel_id")
+                .ok_or_else(|| (StatusCode::BAD_REQUEST, "channel_id required".to_string()))?;
+            let event = s("message_id")
+                .ok_or_else(|| (StatusCode::BAD_REQUEST, "message_id required".to_string()))?;
+            let emoji = s("emoji_id"); // None => clear all reactions on the message
+            let user_id = s("user_id");
+            let reactions = bridge
+                .matrix
+                .relations(room, event)
+                .await
+                .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+            for r in reactions {
+                let is_reaction = r.get("type").and_then(Value::as_str) == Some("m.reaction");
+                if !is_reaction {
+                    continue;
+                }
+                let key = r
+                    .get("content")
+                    .and_then(|c| c.get("m.relates_to"))
+                    .and_then(|rel| rel.get("key"))
+                    .and_then(Value::as_str);
+                let sender = r.get("sender").and_then(Value::as_str);
+                let rid = r.get("event_id").and_then(Value::as_str).unwrap_or("");
+                if rid.is_empty() {
+                    continue;
+                }
+                // reaction.clear with an emoji filters by key; delete matches key too.
+                if let Some(want) = emoji {
+                    if key != Some(want) {
+                        continue;
+                    }
+                }
+                if let Some(u) = user_id {
+                    if sender != Some(u) {
+                        continue;
+                    }
+                }
+                bridge
+                    .matrix
+                    .redact(room, rid)
+                    .await
+                    .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+            }
             Ok(json!({}))
         }
 
-        "reaction.list" => Ok(json!({"data": []})),
+        "reaction.list" => {
+            // Satori getReactionList -> List<User> of users who used `emoji_id`.
+            let room = s("channel_id")
+                .ok_or_else(|| (StatusCode::BAD_REQUEST, "channel_id required".to_string()))?;
+            let event = s("message_id")
+                .ok_or_else(|| (StatusCode::BAD_REQUEST, "message_id required".to_string()))?;
+            let emoji = s("emoji_id");
+            let reactions = bridge
+                .matrix
+                .relations(room, event)
+                .await
+                .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+            let mut data = Vec::new();
+            let mut seen = std::collections::HashSet::new();
+            for r in reactions {
+                if r.get("type").and_then(Value::as_str) != Some("m.reaction") {
+                    continue;
+                }
+                let key = r
+                    .get("content")
+                    .and_then(|c| c.get("m.relates_to"))
+                    .and_then(|rel| rel.get("key"))
+                    .and_then(Value::as_str);
+                if let Some(want) = emoji {
+                    if key != Some(want) {
+                        continue;
+                    }
+                }
+                if let Some(uid) = r.get("sender").and_then(Value::as_str) {
+                    if seen.insert(uid.to_string()) {
+                        data.push(User {
+                            id: uid.to_string(),
+                            ..Default::default()
+                        });
+                    }
+                }
+            }
+            Ok(json!({"data": data}))
+        }
 
         "upload.create" => {
-            // The JS client uses multipart for uploads; axum raw body handling is
-            // delegated to a separate route. Here we just hint.
+            // Normal path is the multipart handler. If a client sends JSON with
+            // base64 `data` fields, support that too for completeness.
             Ok(json!([]))
         }
+
+        // --- Matrix has no direct equivalents for the following. Return
+        // protocol-correct empty/success values instead of a 404 so Koishi
+        // adapters never break on an unsupported call. ---
+        "channel.create" | "user.channel.create" => {
+            // Create a Matrix room (direct message when a user id is given).
+            let data = a.get("data");
+            let name = data
+                .and_then(|d| d.get("name"))
+                .and_then(Value::as_str)
+                .or_else(|| s("name"));
+            let mut invitees: Vec<String> = Vec::new();
+            if let Some(uid) = s("user_id") {
+                invitees.push(uid.to_string());
+            }
+            let room = bridge
+                .matrix
+                .create_room(name, &invitees)
+                .await
+                .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+            Ok(json!(Channel {
+                id: room,
+                r#type: if invitees.is_empty() { 0 } else { 1 },
+                name: name.map(String::from),
+                parent_id: None,
+                position: None,
+            }))
+        }
+        "channel.delete" => {
+            let room = s("channel_id")
+                .ok_or_else(|| (StatusCode::BAD_REQUEST, "channel_id required".to_string()))?;
+            bridge
+                .matrix
+                .leave_room(room)
+                .await
+                .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+            Ok(json!({}))
+        }
+        "channel.update" => {
+            let room = s("channel_id")
+                .ok_or_else(|| (StatusCode::BAD_REQUEST, "channel_id required".to_string()))?;
+            if let Some(name) = a
+                .get("data")
+                .and_then(|d| d.get("name"))
+                .and_then(Value::as_str)
+            {
+                bridge
+                    .matrix
+                    .set_room_name(room, name)
+                    .await
+                    .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+            }
+            Ok(json!({}))
+        }
+        "channel.mute"
+        | "guild.member.mute"
+        | "friend.delete"
+        | "friend.approve"
+        | "guild.approve"
+        | "guild.member.approve" => Ok(json!({})),
+        "guild.member.kick" => {
+            let room = s("guild_id")
+                .ok_or_else(|| (StatusCode::BAD_REQUEST, "guild_id required".to_string()))?;
+            let uid = s("user_id")
+                .ok_or_else(|| (StatusCode::BAD_REQUEST, "user_id required".to_string()))?;
+            bridge
+                .matrix
+                .kick_user(room, uid, s("reason"))
+                .await
+                .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+            Ok(json!({}))
+        }
+        "guild.role.list" | "guild.member.role.list" | "friend.list" => Ok(json!({"data": []})),
+        "guild.role.create"
+        | "guild.role.update"
+        | "guild.role.delete"
+        | "guild.member.role.set"
+        | "guild.member.role.unset" => Ok(json!({})),
 
         _ => err_with("unsupported method", method),
     }

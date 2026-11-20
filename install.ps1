@@ -27,6 +27,9 @@ param(
     [string]$Repo         = "FLY1919/matrix-satori",
     [string]$ApiBase      = "https://api.github.com",
     [string]$DownloadBase = "https://github.com",
+    [ValidateSet("auto", "cn", "direct")]
+    [string]$Mirror       = "auto",     # auto=加速优先直连兜底 / cn=只走国内加速 / direct=只直连
+    [int]$TimeoutSec      = 20,         # 单次请求超时；国内直连卡住时快速回退
     [string]$Target       = "",
     [switch]$FromSource,
     [switch]$Uninstall,
@@ -36,10 +39,44 @@ param(
 
 $ErrorActionPreference = "Stop"
 $Bin = "matrix-satori"
+# 环境变量可预设镜像模式
+if ($env:MATRIX_SATORI_MIRROR) { $Mirror = $env:MATRIX_SATORI_MIRROR }
 
 function Info { param([string]$m) Write-Host $m -ForegroundColor Green }
 function Warn { param([string]$m) Write-Host $m -ForegroundColor Yellow }
 function Fail { param([string]$m) Write-Host "错误: $m" -ForegroundColor Red; exit 1 }
+
+# ---- 镜像优先级：返回 [pscustomobject] 列表 (Name / Api / Download) ----
+function Get-Mirrors {
+    $cn = @(
+        [pscustomobject]@{ Name = "gh-proxy";  Api = "https://gh-proxy.com/https://api.github.com";  Download = "https://gh-proxy.com/https://github.com" },
+        [pscustomobject]@{ Name = "ghproxy.net"; Api = "https://ghproxy.net/https://api.github.com"; Download = "https://ghproxy.net/https://github.com" },
+        [pscustomobject]@{ Name = "ghfast.top"; Api = ""; Download = "https://ghfast.top/https://github.com" },
+        [pscustomobject]@{ Name = "gitmirror"; Api = "https://hub.gitmirror.com/https://api.github.com"; Download = "https://hub.gitmirror.com/https://github.com" }
+    )
+    $direct = @(
+        [pscustomobject]@{ Name = "github"; Api = "https://api.github.com"; Download = "https://github.com" }
+    )
+    switch ($Mirror) {
+        "cn"     { return $cn }
+        "direct" { return $direct }
+        default  { return @($cn) + @($direct) }   # auto: 加速优先，直连兜底
+    }
+}
+
+# 用户自定义基址时优先使用，再按镜像模式追加
+function Get-ApiSources {
+    $list = @()
+    if ($ApiBase -ne "https://api.github.com") { $list += $ApiBase }
+    foreach ($m in (Get-Mirrors)) { if ($m.Api) { $list += $m.Api } }
+    return $list
+}
+function Get-DownloadSources {
+    $list = @()
+    if ($DownloadBase -ne "https://github.com") { $list += $DownloadBase }
+    foreach ($m in (Get-Mirrors)) { if ($m.Download) { $list += $m.Download } }
+    return $list
+}
 
 if ($Help) {
     Get-Help $PSCommandPath -Full
@@ -73,15 +110,23 @@ function Get-Target {
 # ---- 版本解析 ----
 function Resolve-Version {
     if ($Version) { return $Version }
-    Info "正在查询最新 Release ..."
-    try {
-        $meta = Invoke-RestMethod -Uri "$ApiBase/repos/$Repo/releases/latest" -Headers @{ "User-Agent" = "matrix-satori-installer" }
-    } catch {
-        Fail "无法查询 Release 信息: $($_.Exception.Message)"
+    Info "正在查询最新 Release ...（镜像模式: $Mirror）"
+    $tag = ""
+    foreach ($base in (Get-ApiSources)) {
+        Info "  查询 API: $base"
+        try {
+            $meta = Invoke-RestMethod -Uri "$base/repos/$Repo/releases/latest" `
+                -Headers @{ "User-Agent" = "matrix-satori-installer" } -TimeoutSec $TimeoutSec
+            if ($meta.tag_name) { $tag = $meta.tag_name; Info "  ✓ 命中: $base"; break }
+        } catch {
+            Warn "  ✗ 失败: $base ($($_.Exception.Message))"
+        }
     }
-    if (-not $meta.tag_name) { Fail "解析不到最新版本号" }
-    Info "最新版本: $($meta.tag_name)"
-    return $meta.tag_name
+    if (-not $tag) {
+        Fail "查询不到最新 Release：可能是仓库未发版或网络不可达。可试 -Mirror cn、-Version v0.1.0，或用 -FromSource 编译。"
+    }
+    Info "最新版本: $tag"
+    return $tag
 }
 
 # ---- 随机密钥 ----
@@ -102,22 +147,37 @@ function Verify-Checksum {
 }
 
 # ---- 从 Release 安装 ----
+function Download-Asset {
+    param([string]$Rel, [string]$Out)
+    foreach ($base in (Get-DownloadSources)) {
+        Info "  尝试下载源: $base"
+        try {
+            Invoke-WebRequest -Uri "$base/$Rel" -OutFile $Out -UseBasicParsing -TimeoutSec $TimeoutSec
+            return $true
+        } catch {
+            Remove-Item -Path $Out -Force -ErrorAction SilentlyContinue
+            Warn "  ✗ 失败: $base"
+        }
+    }
+    return $false
+}
+
 function Install-FromRelease {
     $t = Get-Target
     $asset = "${Bin}_${Version}_${t}.zip"
-    $url = "$DownloadBase/$Repo/releases/download/$Version/$asset"
+    $rel = "$Repo/releases/download/$Version/$asset"
     $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("ms-install-" + [guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Force -Path $tmp | Out-Null
 
     Info "目标平台: $t"
-    Info "下载: $url"
+    Info "下载资产: $rel （镜像模式: $Mirror）"
     $zip = Join-Path $tmp $asset
     $sum = "$zip.sha256"
-    try {
-        Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
-        Invoke-WebRequest -Uri "$url.sha256" -OutFile $sum -UseBasicParsing
-    } catch {
-        Fail "下载失败，请检查版本号与网络: $($_.Exception.Message)"
+    if (-not (Download-Asset -Rel $rel -Out $zip)) {
+        Fail "下载失败（已尝试全部镜像源）。可试 -Mirror cn、检查代理，或用 -FromSource 编译。"
+    }
+    if (-not (Download-Asset -Rel "$rel.sha256" -Out $sum)) {
+        Fail "下载 .sha256 失败（已尝试全部镜像源）。"
     }
     Verify-Checksum -File $zip -SumFile $sum
 
@@ -143,8 +203,14 @@ function Install-FromSource {
     if (-not $git -or -not $cargo) { Fail "-FromSource 需要本机安装 git 与 Rust(cargo)" }
     $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("ms-src-" + [guid]::NewGuid().ToString("N"))
     Info "从源码编译（可能需要几分钟）..."
-    & git clone --depth 1 "https://github.com/$Repo.git" $tmp
-    if ($LASTEXITCODE -ne 0) { Fail "git clone 失败" }
+    $cloned = $false
+    foreach ($base in (Get-DownloadSources)) {
+        Info "  git clone via $base"
+        & git clone --depth 1 "$base/$Repo.git" $tmp 2>$null
+        if ($LASTEXITCODE -eq 0) { $cloned = $true; break }
+        Remove-Item -Path $tmp -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if (-not $cloned) { Fail "git clone 失败（已尝试全部镜像源）" }
     & cargo build --release --manifest-path (Join-Path $tmp "Cargo.toml")
     if ($LASTEXITCODE -ne 0) { Fail "cargo build 失败" }
     New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null

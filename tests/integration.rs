@@ -5,8 +5,9 @@
 //!   2. HTTP API `message.create` -> Matrix /send call
 
 use axum::extract::State;
-use axum::routing::{get, put};
+use axum::routing::{get, post, put};
 use axum::{Json, Router};
+use matrix_satori::bridge::Bridge;
 use matrix_satori::config::Config;
 use matrix_satori::{build_router, init_bridge};
 use serde_json::{json, Value};
@@ -21,6 +22,7 @@ struct MockState {
     syncs: Vec<Value>,
     sync_index: AtomicUsize,
     sent: Mutex<Vec<Value>>,
+    redacted: Mutex<Vec<String>>,
 }
 
 async fn whoami() -> Json<Value> {
@@ -61,6 +63,35 @@ async fn account_data() -> Json<Value> {
     Json(json!({}))
 }
 
+async fn relations() -> Json<Value> {
+    Json(json!({"chunk": [
+        {"type": "m.reaction", "event_id": "$r1", "sender": "@alice:example.com",
+         "content": {"m.relates_to": {"rel_type": "m.annotation", "event_id": "$evt1", "key": "👍"}}},
+        {"type": "m.reaction", "event_id": "$r2", "sender": "@bob:example.com",
+         "content": {"m.relates_to": {"rel_type": "m.annotation", "event_id": "$evt1", "key": "👍"}}}
+    ]}))
+}
+
+async fn redact(
+    State(state): State<Arc<MockState>>,
+    axum::extract::Path((_room, event, _txn)): axum::extract::Path<(String, String, String)>,
+) -> Json<Value> {
+    state.redacted.lock().await.push(event);
+    Json(json!({"event_id": "$redaction"}))
+}
+
+async fn create_room() -> Json<Value> {
+    Json(json!({"room_id": "!new:example.com"}))
+}
+
+async fn empty_post() -> Json<Value> {
+    Json(json!({}))
+}
+
+async fn upload_media() -> Json<Value> {
+    Json(json!({"content_uri": "mxc://example.com/UPLOAD1"}))
+}
+
 async fn mock_router(state: Arc<MockState>) -> Router {
     Router::new()
         .route("/_matrix/client/v3/account/whoami", get(whoami))
@@ -75,6 +106,24 @@ async fn mock_router(state: Arc<MockState>) -> Router {
             get(room_name),
         )
         .route("/_matrix/client/v3/account_data", get(account_data))
+        .route(
+            "/_matrix/client/v1/rooms/:room/relations/:event/m.annotation/m.reaction",
+            get(relations),
+        )
+        .route(
+            "/_matrix/client/v3/rooms/:room/redact/:event/:txn",
+            put(redact),
+        )
+        .route("/_matrix/client/v3/createRoom", post(create_room))
+        .route("/_matrix/client/v3/rooms/:room/leave", post(empty_post))
+        .route("/_matrix/client/v3/rooms/:room/kick", post(empty_post))
+        .route("/_matrix/client/v3/rooms/:room/invite", post(empty_post))
+        .route("/_matrix/client/v3/rooms/:room/join", post(empty_post))
+        .route(
+            "/_matrix/client/v3/rooms/:room/state/m.room.name",
+            put(empty_post),
+        )
+        .route("/_matrix/media/v3/upload", post(upload_media))
         .with_state(state)
 }
 
@@ -334,4 +383,180 @@ async fn http_unauthorized_without_token() {
     assert_eq!(resp.status(), 200);
     let v: Value = resp.json().await.unwrap();
     assert_eq!(v["adapter"], "matrix");
+}
+
+async fn spawn_server<F>(mock: Arc<MockState>, build: F) -> (u16, u16)
+where
+    F: FnOnce(Arc<Bridge>, u16) -> Router + Send + 'static,
+{
+    let ml = free_listener().await;
+    let mp = ml.local_addr().unwrap().port();
+    let mr = mock_router(mock.clone()).await;
+    tokio::spawn(async move { axum::serve(ml, mr).await.unwrap() });
+
+    let sl = free_listener().await;
+    let sp = sl.local_addr().unwrap().port();
+    let cfg = test_config(
+        format!("http://127.0.0.1:{}", mp),
+        format!("127.0.0.1:{}", sp),
+    );
+    let (bridge, _c) = init_bridge(cfg).await.unwrap();
+    let router = build(bridge, sp);
+    tokio::spawn(async move { axum::serve(sl, router).await.unwrap() });
+    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    (mp, sp)
+}
+
+#[tokio::test]
+async fn reaction_list_returns_users_and_delete_redacts() {
+    let mock = Arc::new(MockState::default());
+    let (_mp, sp) = spawn_server(mock.clone(), |b, _| build_router(b, "")).await;
+    let client = reqwest::Client::new();
+    let base = format!("http://127.0.0.1:{}", sp);
+
+    // getReactionList -> List<User> of users who used 👍
+    let resp = client
+        .post(format!("{}/v1/reaction.list", base))
+        .bearer_auth("satori-secret")
+        .json(&json!({"channel_id": "!room:example.com", "message_id": "$evt1", "emoji_id": "👍"}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 200);
+    let v: Value = resp.json().await.unwrap();
+    assert_eq!(v["data"].as_array().unwrap().len(), 2);
+    assert_eq!(v["data"][0]["id"], "@alice:example.com");
+
+    // deleteReaction(key=👍, user=@alice) -> redact only $r1
+    let resp = client
+        .post(format!("{}/v1/reaction.delete", base))
+        .bearer_auth("satori-secret")
+        .json(
+            &json!({"channel_id": "!room:example.com", "message_id": "$evt1",
+                      "emoji_id": "👍", "user_id": "@alice:example.com"}),
+        )
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 200);
+    let redacted = mock.redacted.lock().await;
+    assert_eq!(redacted.len(), 1);
+    assert_eq!(redacted[0], "$r1");
+}
+
+#[tokio::test]
+async fn channel_and_upload_methods_are_implemented() {
+    use matrix_satori::satori::Channel;
+    let mock = Arc::new(MockState::default());
+    let (_mp, sp) = spawn_server(mock.clone(), |b, _| build_router(b, "")).await;
+    let client = reqwest::Client::new();
+    let base = format!("http://127.0.0.1:{}", sp);
+
+    // channel.create -> Matrix createRoom
+    let resp = client
+        .post(format!("{}/v1/channel.create", base))
+        .bearer_auth("satori-secret")
+        .json(&json!({"guild_id": "", "data": {"name": "新房间"}}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        resp.status(),
+        200,
+        "body: {}",
+        resp.text().await.unwrap_or_default()
+    );
+    let ch: Channel = client
+        .post(format!("{}/v1/channel.create", base))
+        .bearer_auth("satori-secret")
+        .json(&json!({"guild_id": "", "data": {"name": "新房间"}}))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(ch.id, "!new:example.com");
+
+    // upload.create -> multipart -> mxc -> http url
+    let part = reqwest::multipart::Part::bytes(b"hello".to_vec())
+        .file_name("a.txt")
+        .mime_str("text/plain")
+        .unwrap();
+    let form = reqwest::multipart::Form::new().part("file", part);
+    let resp = client
+        .post(format!("{}/v1/upload.create", base))
+        .bearer_auth("satori-secret")
+        .multipart(form)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        resp.status(),
+        200,
+        "body: {}",
+        resp.text().await.unwrap_or_default()
+    );
+}
+
+#[tokio::test]
+async fn no_registered_method_returns_404() {
+    // Every method the adapter may call must be registered and return a
+    // protocol-shaped response (2xx), never "unsupported method".
+    let mock = Arc::new(MockState::default());
+    let (_mp, sp) = spawn_server(mock, |b, _| build_router(b, "")).await;
+    let client = reqwest::Client::new();
+    let base = format!("http://127.0.0.1:{}", sp);
+    let methods = [
+        "channel.get",
+        "channel.list",
+        "channel.create",
+        "channel.update",
+        "channel.delete",
+        "channel.mute",
+        "login.get",
+        "message.update",
+        "message.delete",
+        "message.get",
+        "message.list",
+        "reaction.create",
+        "reaction.delete",
+        "reaction.clear",
+        "reaction.list",
+        "guild.get",
+        "guild.list",
+        "guild.member.get",
+        "guild.member.list",
+        "guild.member.mute",
+        "guild.member.role.set",
+        "guild.member.role.unset",
+        "guild.member.role.list",
+        "guild.role.list",
+        "guild.role.create",
+        "guild.role.update",
+        "guild.role.delete",
+        "user.get",
+        "friend.list",
+        "friend.delete",
+        "friend.approve",
+        "guild.approve",
+        "guild.member.approve",
+        "guild.member.kick",
+        "user.channel.create",
+    ];
+    for m in methods {
+        let resp = client
+            .post(format!("{}/v1/{}", base, m))
+            .bearer_auth("satori-secret")
+            .json(
+                &json!({"channel_id":"!room:example.com","guild_id":"!room:example.com",
+                          "user_id":"@u:example.com","message_id":"$e","emoji_id":"x"}),
+            )
+            .send()
+            .await
+            .unwrap();
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        assert_ne!(status, 404, "method {} returned 404: {}", m, body);
+    }
 }

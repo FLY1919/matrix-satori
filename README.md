@@ -32,7 +32,7 @@ Koishi (adapter-satori)  ──WebSocket/HTTP──▶  matrix-satori  ──Mat
 
 `auto` 的优先级：`--login-token` > 用户名+密码 > appservice > 服务器支持 SSO 则走交互式 SSO > 报错并提示。
 
-登录成功后凭据缓存到 `<state-dir>/credentials.json`（记录 homeserver），下次启动自动复用；换服务器不会误用旧 token。
+登录成功后凭据缓存到 `<state-dir>/credentials.json`（权限 0600，记录 homeserver），下次启动自动复用；换服务器不会误用旧 token。缓存复用规则：只要你没有在命令行/配置里提供新的登录凭据（access token / loginToken / 用户名密码 / as-token），`auto`、`sso`、`password`、`token` 四种方式都会优先读取本地缓存——所以 SSO 登录一次后，后续重启**不用再开浏览器**。直接 `accesstoken` / `applicationservice` 方式自带凭据，不会写入也不会读取缓存。想强制重新登录，删掉 `credentials.json` 即可。
 
 ### 加密房间（E2EE）
 
@@ -129,10 +129,23 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 
 安装脚本会：
 - 自动识别系统/架构（Linux x86_64 / arm64 / armv7、Windows x86_64），下载对应 Release 包并校验 SHA256；macOS 会提示改用 `--from-source`
-- 下载/API 查询失败时**自动回退到国内加速源**（gh-proxy / ghfast / jsdelivr）
+- 所有 GitHub 请求带**连接超时**（默认 8 秒），国内直连卡住时快速回退，不会一直挂着
+- 下载/API 查询按**镜像优先级**逐个尝试：`auto`（默认，gh-proxy / ghproxy.net / ghfast.top / gitmirror 加速优先，官方直连兜底）、`cn`（只走国内加速）、`direct`（只直连）
 - 二进制默认装到 `/usr/local/bin`（非 root 装到 `~/.local/bin`；Windows 见上）
 - 生成配置模板（随机 Satori token、homeserver、登录方式等）；Linux root + systemd 时另生成服务单元
 - **仓库还没发 Release 时**给出明确提示，并可用 `--from-source` 从源码编译（项目内置 rsproxy 镜像）
+
+**国内网络很慢时，直接用加速模式（推荐）：**
+
+```bash
+sh install.sh --mirror cn                       # 只走国内加速源，不碰直连
+# 或设环境变量（Windows: $env:MATRIX_SATORI_MIRROR="cn"）
+MATRIX_SATORI_MIRROR=cn sh install.sh
+# 网络特别差可调小连接超时，更快回退到下一个源
+sh install.sh --mirror cn --connect-timeout 5
+```
+
+Windows 对应用 `-Mirror cn -TimeoutSec 15`。`--mirror direct` 可强制只走官方源。
 
 装完**先编辑配置**再启动：
 

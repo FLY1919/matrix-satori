@@ -17,6 +17,9 @@ VERSION=""
 INSTALL_DIR=""
 CONFIG_DIR=""
 SYSTEMD="auto"          # auto | yes | no
+MIRROR="auto"           # auto | cn | direct  —— GitHub 访问模式
+CONNECT_TIMEOUT=8       # 连接超时(秒)：国内直连卡住时快速回退到加速源
+DOWNLOAD_TIMEOUT=180    # 单个下载最大时长(秒)
 FROM_SOURCE=0
 UNINSTALL=0
 ASSUME_YES=0
@@ -51,10 +54,16 @@ matrix-satori 一键安装
       --repo OWNER/NAME   仓库 (默认 $REPO)
       --api-base URL      GitHub API 地址 (默认 $API_BASE)
       --download-base URL Release 下载基址 (默认 $DOWNLOAD_BASE)
+      --mirror MODE       GitHub 访问模式: auto(先加速后直连,默认) / cn(只走国内加速) / direct(只直连)
+                          国内网络慢时推荐 --mirror cn；也可用环境变量 MATRIX_SATORI_MIRROR
+      --connect-timeout N 连接超时秒数 (默认 $CONNECT_TIMEOUT)
       --doctor            自检：工具/平台/仓库 Release 状态/镜像连通性，不安装
   -h, --help              显示本帮助
 EOF
 }
+
+# 环境变量可预设镜像模式
+[ -n "${MATRIX_SATORI_MIRROR:-}" ] && MIRROR="$MATRIX_SATORI_MIRROR"
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -73,6 +82,8 @@ while [ $# -gt 0 ]; do
     --repo)             REPO="${2:?--repo 需要值}"; shift 2 ;;
     --api-base)         API_BASE="${2:?--api-base 需要值}"; shift 2 ;;
     --download-base)    DOWNLOAD_BASE="${2:?--download-base 需要值}"; shift 2 ;;
+    --mirror)           MIRROR="${2:?--mirror 需要值}"; shift 2 ;;
+    --connect-timeout)  CONNECT_TIMEOUT="${2:?--connect-timeout 需要值}"; shift 2 ;;
     --doctor)           DOCTOR=1; shift ;;
     -h|--help)          usage; exit 0 ;;
     *) fail "未知参数: $1 (用 --help 查看用法)" ;;
@@ -89,24 +100,29 @@ need_sudo() {
   return 0
 }
 
+# 所有网络请求都带连接超时与总时长上限，避免国内直连 GitHub 时无限卡住。
+# 失败时清理半截文件，保证下载回退源不会把残缺包当成成功。
 http_get() {
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$1"
+    curl -fsSL --connect-timeout "$CONNECT_TIMEOUT" --max-time "$DOWNLOAD_TIMEOUT" "$1"
   elif command -v wget >/dev/null 2>&1; then
-    wget -qO- "$1"
+    wget -qO- --timeout="$CONNECT_TIMEOUT" --tries=1 "$1"
   else
     fail "需要 curl 或 wget"
   fi
 }
 
 http_download() {
+  dest="$2"
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL -o "$2" "$1"
+    ok=$(curl -fsSL --connect-timeout "$CONNECT_TIMEOUT" --max-time "$DOWNLOAD_TIMEOUT" -o "$dest" "$1" 2>/dev/null && echo 1 || echo 0)
   elif command -v wget >/dev/null 2>&1; then
-    wget -q -O "$2" "$1"
+    ok=$(wget -q -O "$dest" --timeout="$CONNECT_TIMEOUT" --tries=1 "$1" 2>/dev/null && echo 1 || echo 0)
   else
     fail "需要 curl 或 wget"
   fi
+  [ "$ok" = "1" ] || { rm -f "$dest"; return 1; }
+  return 0
 }
 
 json_field() {
@@ -153,12 +169,53 @@ detect_target() {
   say "目标平台: $TARGET ($EXT)"
 }
 
-# API 加速源：主源失败时依次尝试（gh-proxy 在国内通常可达）
+# 统一的镜像优先级列表，供 API 查询 / 资产下载 / 自检共用。
+# 每个条目格式: "显示名|API基址|下载基址"
+# MIRROR 模式:
+#   auto   —— 国内加速优先，直连兜底（默认，兼顾国内速度与国际可用性）
+#   cn     —— 只走国内加速源，不尝试直连
+#   direct —— 只走 GitHub 官方直连
+mirror_entries() {
+  cn_list="\
+gh-proxy|https://gh-proxy.com/https://api.github.com|https://gh-proxy.com/https://github.com
+ghproxy.net|https://ghproxy.net/https://api.github.com|https://ghproxy.net/https://github.com
+ghfast.top||https://ghfast.top/https://github.com
+gitmirror|https://hub.gitmirror.com/https://api.github.com|https://hub.gitmirror.com/https://github.com"
+  direct_list="\
+github|https://api.github.com|https://github.com"
+  case "$MIRROR" in
+    cn)     printf '%s\n' "$cn_list" ;;
+    direct) printf '%s\n' "$direct_list" ;;
+    *)      printf '%s\n%s\n' "$cn_list" "$direct_list" ;;   # auto: 加速优先，直连兜底
+  esac
+}
+
+# 校验 mirror 模式，写错时早点报错而不是下载到一半才发现
+validate_mirror() {
+  case "$MIRROR" in
+    auto|cn|direct) ;;
+    *) fail "无效的 --mirror 值: $MIRROR (可选 auto/cn/direct)" ;;
+  esac
+}
+
+# 用户显式改过 API_BASE 时优先用它，否则按镜像模式排序
 api_sources() {
-  printf '%s\n' \
-    "$API_BASE" \
-    "https://gh-proxy.com/https://api.github.com" \
-    "https://ghproxy.net/https://api.github.com"
+  if [ "$API_BASE" != "https://api.github.com" ]; then
+    printf '%s\n' "$API_BASE"
+  fi
+  mirror_entries | while IFS='|' read -r name api dl; do
+    [ -n "$api" ] && printf '%s\n' "$api"
+  done
+}
+
+# 下载基址列表（换行分隔），用户自定义时优先
+download_bases() {
+  if [ "$DOWNLOAD_BASE" != "https://github.com" ]; then
+    printf '%s\n' "$DOWNLOAD_BASE"
+  fi
+  mirror_entries | while IFS='|' read -r name api dl; do
+    [ -n "$dl" ] && printf '%s\n' "$dl"
+  done
 }
 
 resolve_version() {
@@ -170,10 +227,12 @@ resolve_version() {
 '
   for base in $src_list; do
     IFS=$old_ifs
-    [ -z "$base" ] && continue
+    [ -z "$base" ] && { IFS='
+'; continue; }
+    say "  查询 API: $base"
     if meta=$(http_get "$base/repos/$REPO/releases/latest" 2>/dev/null); then
       v=$(json_field tag_name "$meta")
-      if [ -n "$v" ]; then got="$v"; break; fi
+      if [ -n "$v" ]; then got="$v"; say "  ✓ 命中: $base"; break; fi
     fi
     IFS='
 '
@@ -234,16 +293,18 @@ install_binary() {
   say "已安装二进制: $dest"
 }
 
-# 下载源回退：主 download-base 失败时试 gh-proxy 加速源
+# 下载源回退：按镜像优先级逐个尝试，成功即停
 download_asset() {
   # $1=相对路径(含 releases/download/...)，$2=输出文件
   rel="$1"; out="$2"; ok=0
   old_ifs=$IFS; IFS='
 '
-  for base in "$DOWNLOAD_BASE" "https://gh-proxy.com/https://github.com" "https://ghfast.top/https://github.com"; do
+  for base in $(download_bases); do
     IFS=$old_ifs
-    [ -z "$base" ] && continue
-    if http_download "${base}/${rel}" "$out" 2>/dev/null; then ok=1; break; fi
+    [ -z "$base" ] && { IFS='
+'; continue; }
+    say "  尝试下载源: $base"
+    if http_download "${base}/${rel}" "$out"; then ok=1; break; fi
     IFS='
 '
   done
@@ -266,10 +327,10 @@ EOF
   fi
   ASSET="${BIN}_${VERSION}_${TARGET}.${EXT}"
   REL="${REPO}/releases/download/${VERSION}/${ASSET}"
-  say "下载: $DOWNLOAD_BASE/$REL"
-  download_asset "$REL" "$TMP/$ASSET" || fail "下载失败（已尝试直连与国内加速源），可用 --doctor 自检或 --from-source 编译"
+  say "下载资产: $REL  (镜像模式: $MIRROR)"
+  download_asset "$REL" "$TMP/$ASSET" || fail "下载失败（已尝试全部镜像源），可试 --mirror cn / --doctor 自检 / --from-source 编译"
   say "下载校验文件 ..."
-  download_asset "$REL.sha256" "$TMP/${ASSET}.sha256" || fail "下载 .sha256 失败（已尝试多个源）"
+  download_asset "$REL.sha256" "$TMP/${ASSET}.sha256" || fail "下载 .sha256 失败（已尝试全部镜像源）"
   verify_checksum "$TMP/$ASSET" "$TMP/${ASSET}.sha256"
 
   say "解压 ..."
@@ -292,12 +353,22 @@ install_from_source() {
   command -v cargo >/dev/null 2>&1 || fail "--from-source 需要本机安装 Rust (cargo)"
   command -v git >/dev/null 2>&1 || fail "--from-source 需要 git"
   say "从源码编译（可能需要几分钟）..."
-  # 国内加速：项目自带 .cargo/config.toml(rsproxy 源)
-  git clone --depth 1 "https://github.com/$REPO.git" "$TMP/src" || {
-    say "github 直连克隆失败，尝试 gh-proxy 加速 ..."
-    git clone --depth 1 "https://gh-proxy.com/https://github.com/$REPO.git" "$TMP/src" || fail "git clone 失败"
-  }
-  # 若项目未带镜像配置且在国内，可用 CARGO_SOURCE 环境变量覆盖（见 --doctor 提示）
+  # git 克隆按镜像模式选源：cn 优先加速，direct 只直连
+  cloned=0
+  old_ifs=$IFS; IFS='
+'
+  for base in $(download_bases); do
+    IFS=$old_ifs
+    [ -z "$base" ] && { IFS='
+'; continue; }
+    say "  git clone via $base"
+    if git clone --depth 1 "$base/$REPO.git" "$TMP/src" 2>/dev/null; then cloned=1; break; fi
+    IFS='
+'
+  done
+  IFS=$old_ifs
+  [ "$cloned" -eq 1 ] || fail "git clone 失败（已尝试全部镜像源）"
+  # 项目自带 .cargo/config.toml(rsproxy 源)，国内 cargo 下载也会加速
   cargo build --release --manifest-path "$TMP/src/Cargo.toml" || fail "cargo build 失败"
   install_binary "$TMP/src/target/release/$BIN"
 }
@@ -444,19 +515,31 @@ do_doctor() {
     say "  未找到 Release —— 仓库可能还没发版，请用 --from-source 编译安装"
   fi
   say ""
-  say "[4/4] 下载源连通性（release 资产基址）"
-  for base in "$DOWNLOAD_BASE" "https://gh-proxy.com/https://github.com" "https://ghfast.top/https://github.com"; do
-    code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 12 "$base/FLY1919/matrix-satori" 2>/dev/null || echo "000")
+  say "[4/4] 下载源连通性（镜像模式: $MIRROR，连接超时 ${CONNECT_TIMEOUT}s）"
+  found_dl=0
+  old_ifs=$IFS; IFS='
+'
+  for base in $(download_bases); do
+    IFS=$old_ifs
+    [ -z "$base" ] && { IFS='
+'; continue; }
+    code=$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout "$CONNECT_TIMEOUT" --max-time 15 "$base/$REPO" 2>/dev/null || echo "000")
+    code=$(printf '%s' "$code" | tail -c 3)   # 连接失败时 curl 可能打印多行，只取末尾状态码
     case "$code" in
-      200|301|302|404) say "  OK  $code  $base" ;;
+      200|301|302|404) say "  OK   $code  $base"; found_dl=1 ;;
       *) say "  FAIL $code  $base" ;;
     esac
+    IFS='
+'
   done
+  IFS=$old_ifs
+  [ "$found_dl" -eq 1 ] || say "  所有下载源都不可达 —— 试试 --mirror cn 或配置网络代理"
   say ""
   say "诊断完成。若 Release 状态为'未找到'，先等维护者发版，或用 --from-source。"
 }
 
 main() {
+  validate_mirror
   if [ -z "$INSTALL_DIR" ]; then
     if is_root; then INSTALL_DIR="/usr/local/bin"; else INSTALL_DIR="$HOME/.local/bin"; fi
   fi

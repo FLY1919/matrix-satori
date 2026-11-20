@@ -230,3 +230,54 @@ async fn credentials_cache_roundtrip() {
     ]);
     assert!(matrix_satori::auth::load_credentials(&c2).is_none());
 }
+
+#[tokio::test]
+async fn sso_reuses_cached_credentials_without_login() {
+    // A cached SSO credential must be reused on restart, even though the
+    // configured method is `sso`. No login flow call should be needed.
+    let dir = std::env::temp_dir().join(format!("sso-cache-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let hs = spawn_mock(Arc::new(AuthMock {
+        flows: vec!["m.login.sso".into()],
+        ..Default::default()
+    }))
+    .await;
+    let mut c = cfg(&hs, &["--login-method", "sso"]);
+    c.state_dir = dir.clone();
+
+    let creds = matrix_satori::auth::Credentials {
+        access_token: "syt_cached_sso".into(),
+        user_id: "@sso:mock".into(),
+        device_id: None,
+        method: "sso",
+    };
+    matrix_satori::auth::save_credentials(&c, &creds).unwrap();
+
+    let (cfg_out, resolved) = matrix_satori::resolve_config(c).await.unwrap();
+    assert_eq!(resolved.access_token, "syt_cached_sso");
+    assert_eq!(resolved.method, "sso");
+    assert_eq!(cfg_out.user_id, "@sso:mock");
+}
+
+#[tokio::test]
+async fn access_token_does_not_write_cache() {
+    // Direct access tokens are supplied by the user; they must not be persisted.
+    let dir = std::env::temp_dir().join(format!("at-nocache-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let hs = spawn_mock(Arc::new(AuthMock::default())).await;
+    let mut c = cfg(&hs, &["--access-token", "syt_direct"]);
+    c.state_dir = dir.clone();
+
+    let _ = matrix_satori::resolve_config(c).await.unwrap();
+    assert!(
+        matrix_satori::auth::load_credentials(&Config::parse_from([
+            "matrix-satori",
+            "--homeserver",
+            &hs,
+            "--state-dir",
+            dir.to_str().unwrap(),
+        ]))
+        .is_none(),
+        "direct access token must not be cached"
+    );
+}

@@ -367,6 +367,11 @@ pub fn save_credentials(config: &Config, creds: &Credentials) -> Result<()> {
         method: creds.method,
     };
     std::fs::write(&path, serde_json::to_string_pretty(&stored)?)?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
+    }
     debug!("saved credentials to {:?}", path);
     Ok(())
 }
@@ -383,7 +388,13 @@ pub fn load_credentials(config: &Config) -> Option<Credentials> {
         access_token: v.get("access_token").and_then(Value::as_str)?.to_string(),
         user_id: v.get("user_id").and_then(Value::as_str)?.to_string(),
         device_id: v.get("device_id").and_then(Value::as_str).map(String::from),
-        method: "cached",
+        method: Box::leak(
+            v.get("method")
+                .and_then(Value::as_str)
+                .unwrap_or("cached")
+                .to_string()
+                .into_boxed_str(),
+        ),
     })
 }
 
