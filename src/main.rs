@@ -10,7 +10,7 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     info!("starting matrix-satori (homeserver={})", config.homeserver);
-    let (config, _creds) = resolve_config(config).await?;
+    let (config, creds) = resolve_config(config).await?;
     let (bridge, cfg) = init_bridge(config).await?;
     info!("authenticated as {}", bridge.self_id);
 
@@ -23,20 +23,25 @@ async fn main() -> anyhow::Result<()> {
         tokio::spawn(async move { b.run_sync().await })
     };
 
-    // Start the official matrix-sdk E2EE sync when we own the login keys.
-    // Password / login-token logins create a device here, so encrypted rooms
-    // can be decrypted. access-token / appservice logins are skipped.
-    let e2ee_handle = if matrix_satori::matrix::e2ee::e2ee_available(&cfg) {
+    // Start the official matrix-sdk E2EE sync by restoring the exact device
+    // the main client logged in as (password / token / SSO / auto all carry a
+    // device id). Keys persist in <state-dir>/crypto-store across restarts.
+    // A bare access token with no device id has no keys and is skipped.
+    let e2ee_handle = if matrix_satori::matrix::e2ee::e2ee_available(&creds) {
         let c = cfg.clone();
         let b = bridge.clone();
-        info!("[e2ee] enabled (password/token login owns the decryption keys)");
+        info!(
+            "[e2ee] enabled (restoring device {} via {} login)",
+            creds.device_id.as_deref().unwrap_or("?"),
+            creds.method
+        );
         Some(tokio::spawn(async move {
-            if let Err(e) = matrix_satori::matrix::e2ee::start(c, b).await {
+            if let Err(e) = matrix_satori::matrix::e2ee::start(c, creds, b).await {
                 tracing::error!("[e2ee] setup failed: {}", e);
             }
         }))
     } else {
-        info!("[e2ee] disabled: reusing an existing access token cannot decrypt; use --login-method password/token");
+        info!("[e2ee] disabled: no device id in credentials (bare access-token / appservice cannot decrypt)");
         None
     };
 

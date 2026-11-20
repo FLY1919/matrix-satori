@@ -31,7 +31,8 @@ uuid = { version = "1", features = ["v4"] }
 url = "2"
 regex = "1"
 # E2EE: 官方 matrix-sdk，抄它的 Client + sync 自动解密
-matrix-sdk = { version = "0.18", default-features = false, features = ["e2e-encryption", "automatic-room-key-forwarding"] }
+# sqlite + bundled-sqlite: 密钥落到本地 store，重启后仍能解密；bundled 避免 musl 交叉编译时缺系统 sqlite 库
+matrix-sdk = { version = "0.18", default-features = false, features = ["e2e-encryption", "automatic-room-key-forwarding", "sqlite", "bundled-sqlite"] }
 
 [dev-dependencies]
 tokio-tungstenite = { version = "0.21", features = ["connect"] }

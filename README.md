@@ -36,23 +36,25 @@ Koishi (adapter-satori)  ──WebSocket/HTTP──▶  matrix-satori  ──Mat
 
 ### 加密房间（E2EE）
 
-加密房间（`m.room.encrypted`）的消息现在**可以正常桥接**了。实现基于 Matrix 官方 Rust SDK（`matrix-sdk`），它对 olm/megolm 解密是透明的——程序会用官方范式单独登录一个设备、自动同步并解密消息，再转成 Satori 事件推给 Koishi。明文房间仍走原来的轻量 sync，两者互不干扰、不会重复。
+加密房间（`m.room.encrypted`）的消息**可以正常桥接**。实现基于 Matrix 官方 Rust SDK（`matrix-sdk`）：程序用 `restore_session` **复用主客户端登录时拿到的同一个设备**（access token + device_id），官方范式自动同步并解密 olm/megolm，再转成 Satori 事件推给 Koishi。明文房间仍走原来的轻量 sync，两者互不干扰、不会重复。
 
-**启用条件**（重要）：E2EE 解密要求私钥在本进程里，所以只有"程序自己完成登录"的方式能开启：
+密钥通过 SQLite（bundled）持久化到 `<state-dir>/crypto-store`，**重启后仍能解密**。
+
+**启用条件**：解密要求私钥对应的 device_id 在本进程里，所以只要凭据带 device_id 就能开启：
 
 | 登录方式 | 加密房间 |
 | --- | --- |
+| 交互式 SSO `sso` | ✅ 支持（回调返回 device_id，直接复用） |
 | 密码 `password` | ✅ 支持 |
 | Token `token`（SSO 回调的 loginToken） | ✅ 支持 |
-| `auto` 且提供了用户名密码或 loginToken | ✅ 支持 |
-| 直接 access token `accesstoken` | ❌ 不支持（该 token 的设备私钥不在这，无法解密） |
-| Appservice `applicationservice` | ❌ 不支持 |
-| 交互式 SSO `sso` | ⚠️ 首次登录会缓存凭据；缓存后如走 `auto` 且带凭据可解密，纯 `sso` 模式不启用 |
+| `auto` | ✅ 支持（登录成功即带 device_id） |
+| 直接 access token `accesstoken` | ❌ 通常不支持（没传 device_id 就无密钥可恢复；配合 `--device-id` 可启用） |
+| Appservice `applicationservice` | ❌ 通常不支持（同上） |
 
-启动日志会打印 `[e2ee] enabled` 或 `[e2ee] disabled` 及原因。
+启动日志会打印 `[e2ee] enabled (restoring device ... via ... login)` 或 `[e2ee] disabled` 及原因。明文 sync 里那条 `ignoring encrypted event` 已降为 debug——加密事件由 E2EE sync 负责，属正常现象。
 
 **限制**：
-- 设备密钥当前保存在内存中（未启用 sqlite 持久化），**重启后无法解密历史消息**，只能解密重启后新收到、且对方重新分发的消息。需要长期保留历史解密能力可后续加持久化 store。
+- **历史消息**：Matrix 的密钥与设备绑定，本设备创建**之前**发送的加密消息无法解密（需要 cross-signing / 密钥备份恢复，未实现）。从本次登录起、对方重新分发的消息可解。
 - 未做跨设备验证（cross-signing / emoji 验证），默认接受未验证设备的消息（能解密，但不做信任校验）。
 
 ### 关于 SSO 登录（mozilla.modular.im 这类）
@@ -289,8 +291,8 @@ sync_timeout = 30000
 
 ## 已验证 / 限制
 
-- **38 个测试全部通过**：单元（元素解析 / 登录名 / TOML 配置自动创建·读取·CLI 覆盖）+ 7 登录方式集成（password / token / appservice / access-token / auto / flows 探测 / 凭据缓存）+ 3 服务端集成（WS READY、事件推送、PING-PONG、message.create 调用链、鉴权）。登录测试用 mock homeserver 验证真实 HTTP 交互。
-- **端到端加密（E2EE）已支持**：基于官方 `matrix-sdk` 自动解密 olm/megolm，加密房间消息能桥接到 Koishi。启用条件与限制见上方「加密房间（E2EE）」章节（密码 / token 登录可用；access token / appservice 不可用；重启后不保留历史消息密钥）。
+- **46 个测试全部通过**：单元（元素解析 / 登录名 / TOML 配置自动创建·读取·CLI 覆盖 / E2EE 可用性判断）+ 9 登录方式集成（password / token / appservice / access-token / auto / flows 探测 / 凭据缓存）+ 6 服务端集成（WS READY、事件推送、PING-PONG、message.create 调用链、鉴权、reaction / channel / upload API、全方法非 404）。登录测试用 mock homeserver 验证真实 HTTP 交互。
+- **端到端加密（E2EE）已支持**：基于官方 `matrix-sdk` 用 `restore_session` 复用登录设备，自动解密 olm/megolm；SSO / password / token / auto 均可用，密钥经 SQLite 持久化、重启后仍可解密。启用条件与历史消息限制见上方「加密房间（E2EE）」章节。
 - 反应删除（`reaction.delete/clear`）需要 Matrix 侧的反应事件 ID，而 Satori 该 action 不带，目前是空操作。
 
 ## 开发

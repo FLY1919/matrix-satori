@@ -166,10 +166,10 @@ impl Bridge {
             "m.room.topic" => {}
             "m.room.redaction" => self.emit_message_deleted(room_id, &info).await,
             "m.room.encrypted" => {
-                warn!(
-                    "ignoring encrypted event {} (E2EE not supported)",
-                    info.event_id
-                );
+                // Decrypted by the separate matrix-sdk sync loop (if enabled).
+                // The plain-text sync only ever sees the ciphertext, so skip it
+                // here to avoid emitting it twice.
+                debug!("encrypted event {} left to the E2EE sync", info.event_id);
             }
             _ => debug!("ignoring event type {}", info.event_type),
         }
