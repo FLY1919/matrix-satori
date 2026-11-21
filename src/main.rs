@@ -17,33 +17,26 @@ async fn main() -> anyhow::Result<()> {
     let prefix = cfg.normalized_prefix();
     let router = build_router(bridge.clone(), &prefix);
 
-    // Start Matrix sync loop in the background (plain-text rooms + APIs).
-    let sync_handle = {
-        let b = bridge.clone();
-        tokio::spawn(async move { b.run_sync().await })
-    };
-
-    // Start the official matrix-sdk E2EE sync by restoring the exact device
-    // the main client logged in as (password / token / SSO / auto all carry a
-    // device id). Keys persist in <state-dir>/crypto-store across restarts.
-    // A bare access token with no device id has no keys and is skipped.
-    let e2ee_handle = if matrix_satori::matrix::e2ee::e2ee_available(&creds) {
-        let c = cfg.clone();
-        let b = bridge.clone();
-        info!(
-            "[e2ee] enabled (restoring device {} via {} login)",
-            creds.device_id.as_deref().unwrap_or("?"),
-            creds.method
-        );
-        Some(tokio::spawn(async move {
-            if let Err(e) = matrix_satori::matrix::e2ee::start(c, creds, b).await {
-                tracing::error!("[e2ee] setup failed: {}", e);
-            }
-        }))
-    } else {
-        info!("[e2ee] disabled: no device id in credentials (bare access-token / appservice cannot decrypt)");
-        None
-    };
+    // A single official matrix-sdk engine handles ALL receiving (plain +
+    // encrypted rooms, decrypted transparently) and ALL sending (via
+    // Room::send_raw). No second lightweight sync — one connection, no
+    // duplicate events. Credentials from our own login are restored into it.
+    let has_device = matrix_satori::matrix::e2ee::e2ee_available(&creds);
+    info!(
+        "[sdk] starting single sync engine ({}, device={})",
+        creds.method,
+        creds.device_id.as_deref().unwrap_or("generated")
+    );
+    if !has_device {
+        info!("[sdk] no device id in credentials: plain rooms work, encrypted rooms need a device-bound login (password/token/sso)");
+    }
+    let c = cfg.clone();
+    let b = bridge.clone();
+    let sdk_handle = tokio::spawn(async move {
+        if let Err(e) = matrix_satori::matrix::e2ee::start(c, creds, b).await {
+            tracing::error!("[sdk] setup failed: {}", e);
+        }
+    });
 
     let listener = tokio::net::TcpListener::bind(&cfg.bind).await?;
     info!(
@@ -53,9 +46,6 @@ async fn main() -> anyhow::Result<()> {
     info!("HTTP API at http://{}{}/v1/<method>", cfg.bind, prefix);
 
     axum::serve(listener, router).await?;
-    sync_handle.abort();
-    if let Some(h) = e2ee_handle {
-        h.abort();
-    }
+    sdk_handle.abort();
     Ok(())
 }

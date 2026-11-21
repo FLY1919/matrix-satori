@@ -123,11 +123,20 @@ async fn dispatch(bridge: &Arc<Bridge>, method: &str, a: &Value, _q: &Option<Str
                     rel.insert("m.in_reply_to".into(), json!({"event_id": qid}));
                 }
             }
-            let event_id = bridge
-                .matrix
-                .send_message(room, &matrix_content, None)
+            // Send through the single SDK client when available: it encrypts
+            // in encrypted rooms and sends plaintext in plain rooms. Fall back
+            // to the lightweight HTTP path only before the SDK is installed.
+            let event_id = match bridge
+                .sdk_send_raw(room, "m.room.message", &matrix_content)
                 .await
-                .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+            {
+                Some(id) => id,
+                None => bridge
+                    .matrix
+                    .send_message(room, &matrix_content, None)
+                    .await
+                    .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?,
+            };
             // Also emit locally so the sender sees its own message immediately,
             // matching other Satori adapters.
             let msg = Message {

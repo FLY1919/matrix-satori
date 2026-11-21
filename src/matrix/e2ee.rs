@@ -1,43 +1,33 @@
-//! End-to-end encrypted room support via the official `matrix-sdk`.
+//! Single Matrix sync and I/O engine built on the official `matrix-sdk`.
 //!
-//! Faithful adaptation of matrix-rust-sdk's `examples/getting_started`: build a
-//! `Client` with a persistent SQLite store, restore the *existing* login
-//! session (so we reuse the same device and its olm keys), register an event
-//! handler, and `sync()`. The SDK transparently decrypts `m.room.encrypted`
-//! events, so the handler receives a plain `SyncRoomMessageEvent`.
+//! The login is resolved by our own `auth` module (all methods, incl. SSO),
+//! then the resulting credentials are handed to the SDK via `restore_session`.
+//! The SDK owns the ONLY sync loop: it transparently decrypts encrypted rooms,
+//! so plain and encrypted messages arrive through the same handlers — no
+//! duplicate events, no second lightweight sync.
 //!
-//! Because we `restore_session` with the credentials already obtained by the
-//! main (plain-text) client, **every** login method that has a device id can
-//! decrypt: password, login-token, interactive SSO, and auto. (A bare access
-//! token with no device id has no keys to restore and is skipped.)
+//! Sending also goes through the SDK (`Room::send_raw`), which encrypts
+//! automatically in encrypted rooms and works in plain rooms too.
 //!
-//! The SQLite store persists olm/megolm keys under `<state-dir>/crypto-store`,
-//! so decryption survives restarts. Messages sent *before* this device existed
-//! still cannot be decrypted without cross-signing / key backup, which is a
-//! Matrix protocol limitation, not a bridge limitation.
-//!
-//! The plain-text sync loop in `Bridge::run_sync` keeps handling unencrypted
-//! rooms; this client only forwards messages that arrived decrypted, so the
-//! two paths never duplicate events.
+//! Keys persist in a SQLite store at `<state-dir>/crypto-store`, so decryption
+//! survives restarts. Messages from before this device existed still cannot be
+//! decrypted without cross-signing / key backup (a Matrix protocol limitation).
 
 use crate::auth::Credentials;
 use crate::bridge::Bridge;
 use crate::config::Config;
-use crate::matrix::EventInfo;
 use matrix_sdk::authentication::matrix::MatrixSession;
 use matrix_sdk::config::SyncSettings;
 use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::ruma::events::room::message::SyncRoomMessageEvent;
 use matrix_sdk::ruma::{OwnedDeviceId, OwnedUserId};
 use matrix_sdk::{Client, Room, SessionMeta, SessionTokens};
+use serde_json::{json, Value};
 use std::sync::Arc;
-use tracing::{debug, error, info};
+use tracing::{error, info};
 
-/// Whether E2EE can be enabled for the resolved credentials.
-///
-/// Decryption needs this process to own the device's olm keys. We restore the
-/// session using the access token + device id that the main client already
-/// obtained, so any credential set carrying a device id works — including SSO.
+/// Any credential carrying a device id can drive the SDK engine. A bare
+/// access token (no device id) or appservice has no device to restore.
 pub fn e2ee_available(creds: &Credentials) -> bool {
     creds
         .device_id
@@ -48,14 +38,14 @@ pub fn e2ee_available(creds: &Credentials) -> bool {
         && !creds.user_id.is_empty()
 }
 
-/// Start the E2EE sync loop in the background. Returns an error only for setup
-/// failures (client build / session restore); the sync loop itself retries.
+/// Build + restore the SDK client, register every event handler, start the
+/// single sync loop, and install the client into `Bridge` so Satori API calls
+/// (send message / reaction / upload) can reuse it.
 pub async fn start(
     config: Arc<Config>,
     creds: Credentials,
     bridge: Arc<Bridge>,
 ) -> anyhow::Result<()> {
-    // Persistent store so olm/megolm keys survive restarts.
     let store_dir = config.state_dir.join("crypto-store");
     std::fs::create_dir_all(&store_dir)?;
 
@@ -65,16 +55,18 @@ pub async fn start(
         .build()
         .await?;
 
-    // Reuse the exact device the main client logged in as. Restoring (instead
-    // of logging in again) avoids creating a second device with different keys.
     let user_id = OwnedUserId::try_from(creds.user_id.as_str())
         .map_err(|e| anyhow::anyhow!("invalid user_id '{}': {}", creds.user_id, e))?;
-    let device_id = OwnedDeviceId::from(
-        creds
-            .device_id
-            .as_deref()
-            .ok_or_else(|| anyhow::anyhow!("no device_id to restore E2EE session"))?,
-    );
+    // Even a bare access-token can drive the SDK sync: Matrix lets any token
+    // sync under an arbitrary device id. There are no olm keys in that case, so
+    // encrypted rooms stay undecryptable, but plain rooms work and we keep a
+    // single sync engine for every login method.
+    let device_id = creds
+        .device_id
+        .as_deref()
+        .filter(|d| !d.is_empty())
+        .map(OwnedDeviceId::from)
+        .unwrap_or_else(|| OwnedDeviceId::from(format!("MS_{}", uuid::Uuid::new_v4().simple())));
     let session = MatrixSession {
         meta: SessionMeta { user_id, device_id },
         tokens: SessionTokens {
@@ -84,41 +76,42 @@ pub async fn start(
     };
     client.restore_session(session).await?;
     info!(
-        "[e2ee] session restored as {} (device from {} login)",
+        "[sdk] session restored as {} (device from {} login)",
         client.user_id().map(|u| u.as_str()).unwrap_or("?"),
         creds.method
     );
 
-    // Register the bridge as handler context (official `add_event_handler_context`).
-    // `Room` is injected by the SDK so we know which room the event came from.
+    // Install this client into the bridge BEFORE sync so API sends reuse it.
+    bridge.set_sdk_client(client.clone());
+
+    // Register handlers. The SDK delivers decrypted content for encrypted rooms
+    // and plain content for plain rooms through these same typed handlers.
     client.add_event_handler_context(bridge.clone());
     client.add_event_handler(
         |event: SyncRoomMessageEvent, room: Room, bridge: Ctx<Arc<Bridge>>| async move {
-            on_room_message(event, room, bridge).await;
+            if let Some(v) = message_value(&event, room.room_id().as_str()) {
+                bridge.handle_event_json(room.room_id().as_str(), &v).await;
+            }
         },
     );
 
-    // Initial sync to establish room state / upload keys, then stream forever.
+    // Initial sync establishes room state and uploads olm keys.
     let token = client.sync_once(SyncSettings::default()).await?.next_batch;
-    info!("[e2ee] sync loop started (encrypted rooms will be decrypted)");
+    info!("[sdk] sync loop started (plain + encrypted rooms)");
 
     let settings = SyncSettings::default().token(token);
     if let Err(e) = client.sync(settings).await {
-        error!("[e2ee] sync ended: {}", e);
+        error!("[sdk] sync ended: {}", e);
     }
     Ok(())
 }
 
-/// Official-style event handler. Receives decrypted message events.
-async fn on_room_message(event: SyncRoomMessageEvent, room: Room, bridge: Ctx<Arc<Bridge>>) {
-    // ruma's SyncMessageLikeEvent enum does not implement Serialize, but its
-    // content type does. Rebuild the wire shape we feed to EventInfo by hand.
-    let (event_id, sender, ts, content) = match &event {
+/// Rebuild the wire JSON shape that `EventInfo::from_value` expects from a
+/// decrypted (or plain) `SyncRoomMessageEvent`.
+fn message_value(event: &SyncRoomMessageEvent, room_id: &str) -> Option<Value> {
+    let (event_id, sender, ts, content) = match event {
         SyncRoomMessageEvent::Original(e) => {
-            let Ok(content) = serde_json::to_value(&e.content) else {
-                debug!("[e2ee] could not serialize content");
-                return;
-            };
+            let content = serde_json::to_value(&e.content).ok()?;
             (
                 e.event_id.as_str().to_string(),
                 e.sender.as_str().to_string(),
@@ -126,23 +119,16 @@ async fn on_room_message(event: SyncRoomMessageEvent, room: Room, bridge: Ctx<Ar
                 content,
             )
         }
-        SyncRoomMessageEvent::Redacted(_) => return,
+        SyncRoomMessageEvent::Redacted(_) => return None,
     };
-    if content.get("body").is_none() {
-        return;
-    }
-    let value = serde_json::json!({
+    Some(json!({
         "type": "m.room.message",
         "event_id": event_id,
         "sender": sender,
         "origin_server_ts": ts,
-        "room_id": room.room_id().as_str(),
+        "room_id": room_id,
         "content": content,
-    });
-    let info = EventInfo::from_value(&value);
-    let room_id = room.room_id().to_string();
-    debug!("[e2ee] decrypted message {} in {}", info.event_id, room_id);
-    bridge.emit_message(&room_id, &info).await;
+    }))
 }
 
 #[cfg(test)]
@@ -159,18 +145,18 @@ mod tests {
     }
 
     #[test]
-    fn sso_with_device_enables_e2ee() {
+    fn sso_with_device_enables_sdk() {
         assert!(e2ee_available(&creds(Some("DEV1"), "syt_x", "@u:s")));
     }
 
     #[test]
-    fn no_device_disables_e2ee() {
+    fn no_device_disables_sdk() {
         assert!(!e2ee_available(&creds(None, "syt_x", "@u:s")));
         assert!(!e2ee_available(&creds(Some(""), "syt_x", "@u:s")));
     }
 
     #[test]
-    fn empty_token_or_user_disables_e2ee() {
+    fn empty_token_or_user_disables_sdk() {
         assert!(!e2ee_available(&creds(Some("DEV1"), "", "@u:s")));
         assert!(!e2ee_available(&creds(Some("DEV1"), "syt_x", "")));
     }

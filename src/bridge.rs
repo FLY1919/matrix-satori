@@ -17,6 +17,10 @@ pub struct Bridge {
     pub login: Login,
     pub self_id: String,
     pub tx: broadcast::Sender<Value>,
+    /// The single official SDK client, installed after `restore_session`.
+    /// All receiving (typed handlers) and sending (`Room::send_raw`) go through
+    /// this one connection, so plain + encrypted rooms share one sync loop.
+    sdk: tokio::sync::OnceCell<matrix_sdk::Client>,
     last_token: std::sync::Mutex<String>,
     sn: AtomicI64,
     room_names: tokio::sync::RwLock<HashMap<String, String>>,
@@ -65,9 +69,42 @@ impl Bridge {
             login,
             self_id,
             tx,
+            sdk: tokio::sync::OnceCell::new(),
             last_token: std::sync::Mutex::new(String::new()),
             sn: AtomicI64::new(0),
             room_names: tokio::sync::RwLock::new(HashMap::new()),
+        }
+    }
+
+    /// Install the restored SDK client. Called once by the SDK engine before
+    /// its sync loop starts so API sends reuse the same device/session.
+    pub fn set_sdk_client(&self, client: matrix_sdk::Client) {
+        let _ = self.sdk.set(client);
+    }
+
+    pub fn sdk_client(&self) -> Option<&matrix_sdk::Client> {
+        self.sdk.get()
+    }
+
+    /// Send a message-like event through the single SDK client. The SDK
+    /// encrypts automatically in encrypted rooms and sends plaintext in plain
+    /// rooms, so callers do not need to know a room's encryption state.
+    /// Returns the event id, or `None` if the SDK is not installed yet.
+    pub async fn sdk_send_raw(
+        &self,
+        room_id: &str,
+        event_type: &str,
+        content: &Value,
+    ) -> Option<String> {
+        let client = self.sdk.get()?;
+        let rid = matrix_sdk::ruma::RoomId::parse(room_id).ok()?;
+        let room = client.get_room(&rid)?;
+        match room.send_raw(event_type, content).await {
+            Ok(resp) => Some(resp.response.event_id.to_string()),
+            Err(e) => {
+                error!("[sdk] send {} to {} failed: {}", event_type, room_id, e);
+                None
+            }
         }
     }
 
@@ -141,7 +178,7 @@ impl Bridge {
                 }
             }
             for ev in &room.timeline.events {
-                self.handle_room_event(room_id, ev).await;
+                self.handle_event_json(room_id, ev).await;
             }
         }
         for (room_id, invited) in &resp.rooms.invite {
@@ -156,7 +193,10 @@ impl Bridge {
         }
     }
 
-    async fn handle_room_event(&self, room_id: &str, ev: &Value) {
+    /// Dispatch a single raw room event (already decrypted by the SDK when it
+    /// came from an encrypted room) into the corresponding Satori event. This
+    /// is the sole event entry point now — the SDK is the only sync engine.
+    pub(crate) async fn handle_event_json(&self, room_id: &str, ev: &Value) {
         let info = EventInfo::from_value(ev);
         match info.event_type.as_str() {
             "m.room.message" => self.emit_message(room_id, &info).await,
@@ -166,10 +206,7 @@ impl Bridge {
             "m.room.topic" => {}
             "m.room.redaction" => self.emit_message_deleted(room_id, &info).await,
             "m.room.encrypted" => {
-                // Decrypted by the separate matrix-sdk sync loop (if enabled).
-                // The plain-text sync only ever sees the ciphertext, so skip it
-                // here to avoid emitting it twice.
-                debug!("encrypted event {} left to the E2EE sync", info.event_id);
+                debug!("encrypted event {} not decrypted by SDK", info.event_id);
             }
             _ => debug!("ignoring event type {}", info.event_type),
         }

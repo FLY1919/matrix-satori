@@ -34,13 +34,15 @@ Koishi (adapter-satori)  ──WebSocket/HTTP──▶  matrix-satori  ──Mat
 
 登录成功后凭据缓存到 `<state-dir>/credentials.json`（权限 0600，记录 homeserver），下次启动自动复用；换服务器不会误用旧 token。缓存复用规则：只要你没有在命令行/配置里提供新的登录凭据（access token / loginToken / 用户名密码 / as-token），`auto`、`sso`、`password`、`token` 四种方式都会优先读取本地缓存——所以 SSO 登录一次后，后续重启**不用再开浏览器**。直接 `accesstoken` / `applicationservice` 方式自带凭据，不会写入也不会读取缓存。想强制重新登录，删掉 `credentials.json` 即可。
 
-### 加密房间（E2EE）
+### 加密房间（E2EE）与收发架构
 
-加密房间（`m.room.encrypted`）的消息**可以正常桥接**。实现基于 Matrix 官方 Rust SDK（`matrix-sdk`）：程序用 `restore_session` **复用主客户端登录时拿到的同一个设备**（access token + device_id），官方范式自动同步并解密 olm/megolm，再转成 Satori 事件推给 Koishi。明文房间仍走原来的轻量 sync，两者互不干扰、不会重复。
+整个程序只有**一条** Matrix 连接，基于官方 Rust SDK（`matrix-sdk`）：登录由本程序自己完成（支持全部方式），拿到的凭据通过 `restore_session` 交给 SDK，之后**收消息和发消息全部走这一条 SDK 连接**——明文房间直接收发，加密房间由 SDK 自动解密/加密。没有第二套 sync，同一条消息只会推一次。
 
-密钥通过 SQLite（bundled）持久化到 `<state-dir>/crypto-store`，**重启后仍能解密**。
+- **收**：SDK 的强类型事件处理器（message/reaction/redaction）统一转成 Satori 事件，加密房间的 `m.room.encrypted` 被透明解密后再投递。
+- **发**：`message.create` 等经 `Room::send_raw` 发送，SDK 在加密房间自动加密、明文房间直接发，调用方无需关心房间是否加密。
+- **密钥**：通过 SQLite（bundled）持久化到 `<state-dir>/crypto-store`，重启后仍能解密。
 
-**启用条件**：解密要求私钥对应的 device_id 在本进程里，所以只要凭据带 device_id 就能开启：
+**启用条件**：解密要求凭据带 device_id（决定能否恢复该设备的 olm 密钥）：
 
 | 登录方式 | 加密房间 |
 | --- | --- |
@@ -48,13 +50,15 @@ Koishi (adapter-satori)  ──WebSocket/HTTP──▶  matrix-satori  ──Mat
 | 密码 `password` | ✅ 支持 |
 | Token `token`（SSO 回调的 loginToken） | ✅ 支持 |
 | `auto` | ✅ 支持（登录成功即带 device_id） |
-| 直接 access token `accesstoken` | ❌ 通常不支持（没传 device_id 就无密钥可恢复；配合 `--device-id` 可启用） |
-| Appservice `applicationservice` | ❌ 通常不支持（同上） |
+| 直接 access token `accesstoken` | ⚠️ 带 `--device-id` 且该设备密钥在本机 store 时可用；否则明文可收发、加密房间解不了 |
+| Appservice `applicationservice` | ⚠️ 同上 |
 
-启动日志会打印 `[e2ee] enabled (restoring device ... via ... login)` 或 `[e2ee] disabled` 及原因。明文 sync 里那条 `ignoring encrypted event` 已降为 debug——加密事件由 E2EE sync 负责，属正常现象。
+启动日志打印 `[sdk] starting single sync engine (...)` 和 `[sdk] session restored`。
+
+**重要：设备独占**。这个桥接程序会用凭据里的 device_id 恢复会话并上传自己的 one-time keys，因此**该 device 必须专供本程序使用，不要同时在你手机/网页端登录同一个 device**——否则两端会抢密钥（表现为 `One time key ... already exists` 或 `SigningKeyChanged`）。需要手机同时在线就用另一个账号，或给桥接单独建一个 device 登录。state_dir（含 crypto-store 和 credentials.json）要固定并持久化，别每次换目录。
 
 **限制**：
-- **历史消息**：Matrix 的密钥与设备绑定，本设备创建**之前**发送的加密消息无法解密（需要 cross-signing / 密钥备份恢复，未实现）。从本次登录起、对方重新分发的消息可解。
+- **历史消息**：Matrix 密钥与设备绑定，本设备创建**之前**发送的加密消息无法解密（需要 cross-signing / 密钥备份恢复，未实现）。从本次登录起、对方重新分发的消息可解。
 - 未做跨设备验证（cross-signing / emoji 验证），默认接受未验证设备的消息（能解密，但不做信任校验）。
 
 ### 关于 SSO 登录（mozilla.modular.im 这类）
@@ -292,7 +296,7 @@ sync_timeout = 30000
 ## 已验证 / 限制
 
 - **46 个测试全部通过**：单元（元素解析 / 登录名 / TOML 配置自动创建·读取·CLI 覆盖 / E2EE 可用性判断）+ 9 登录方式集成（password / token / appservice / access-token / auto / flows 探测 / 凭据缓存）+ 6 服务端集成（WS READY、事件推送、PING-PONG、message.create 调用链、鉴权、reaction / channel / upload API、全方法非 404）。登录测试用 mock homeserver 验证真实 HTTP 交互。
-- **端到端加密（E2EE）已支持**：基于官方 `matrix-sdk` 用 `restore_session` 复用登录设备，自动解密 olm/megolm；SSO / password / token / auto 均可用，密钥经 SQLite 持久化、重启后仍可解密。启用条件与历史消息限制见上方「加密房间（E2EE）」章节。
+- **单一 SDK 收发 + E2EE 已支持**：基于官方 `matrix-sdk` 用 `restore_session` 复用登录设备，全局只有一条连接，收消息和发消息都走它（加密房间自动加/解密，同一条消息只推一次）；SSO / password / token / auto 均可用，密钥经 SQLite 持久化、重启后仍可解密。启用条件、设备独占要求与历史消息限制见上方「加密房间（E2EE）与收发架构」章节。
 - 反应删除（`reaction.delete/clear`）需要 Matrix 侧的反应事件 ID，而 Satori 该 action 不带，目前是空操作。
 
 ## 开发
