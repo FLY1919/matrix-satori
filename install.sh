@@ -18,8 +18,9 @@ INSTALL_DIR=""
 CONFIG_DIR=""
 SYSTEMD="auto"          # auto | yes | no
 MIRROR="auto"           # auto | cn | direct  —— GitHub 访问模式
-CONNECT_TIMEOUT=8       # 连接超时(秒)：国内直连卡住时快速回退到加速源
+CONNECT_TIMEOUT=8       # 连接超时(秒)：单次 HTTP 请求连接阶段上限
 DOWNLOAD_TIMEOUT=180    # 单个下载最大时长(秒)
+PROBE_TIMEOUT=5         # 测速探测上限(秒)：并发探测各源，超时仅用于封顶，不决定优先级
 FROM_SOURCE=0
 UNINSTALL=0
 ASSUME_YES=0
@@ -54,10 +55,12 @@ matrix-satori 一键安装
       --repo OWNER/NAME   仓库 (默认 $REPO)
       --api-base URL      GitHub API 地址 (默认 $API_BASE)
       --download-base URL Release 下载基址 (默认 $DOWNLOAD_BASE)
-      --mirror MODE       GitHub 访问模式: auto(先加速后直连,默认) / cn(只走国内加速) / direct(只直连)
+      --mirror MODE       GitHub 访问模式: auto(加速+直连一起测速,默认) / cn(只测国内加速) / direct(只直连)
+                          安装前会并发探测各源响应速度，按最快优先，而不是按固定顺序+超时试错
                           国内网络慢时推荐 --mirror cn；也可用环境变量 MATRIX_SATORI_MIRROR
       --connect-timeout N 连接超时秒数 (默认 $CONNECT_TIMEOUT)
-      --doctor            自检：工具/平台/仓库 Release 状态/镜像连通性，不安装
+      --probe-timeout N   测速探测上限秒数 (默认 $PROBE_TIMEOUT)，仅用于给慢源封顶
+      --doctor            自检：工具/平台/仓库 Release 状态/各源实测延迟排名，不安装
   -h, --help              显示本帮助
 EOF
 }
@@ -84,6 +87,7 @@ while [ $# -gt 0 ]; do
     --download-base)    DOWNLOAD_BASE="${2:?--download-base 需要值}"; shift 2 ;;
     --mirror)           MIRROR="${2:?--mirror 需要值}"; shift 2 ;;
     --connect-timeout)  CONNECT_TIMEOUT="${2:?--connect-timeout 需要值}"; shift 2 ;;
+    --probe-timeout)    PROBE_TIMEOUT="${2:?--probe-timeout 需要值}"; shift 2 ;;
     --doctor)           DOCTOR=1; shift ;;
     -h|--help)          usage; exit 0 ;;
     *) fail "未知参数: $1 (用 --help 查看用法)" ;;
@@ -169,12 +173,13 @@ detect_target() {
   say "目标平台: $TARGET ($EXT)"
 }
 
-# 统一的镜像优先级列表，供 API 查询 / 资产下载 / 自检共用。
+# 统一的镜像候选列表，供 API 查询 / 资产下载 / 自检共用。
 # 每个条目格式: "显示名|API基址|下载基址"
-# MIRROR 模式:
-#   auto   —— 国内加速优先，直连兜底（默认，兼顾国内速度与国际可用性）
-#   cn     —— 只走国内加速源，不尝试直连
-#   direct —— 只走 GitHub 官方直连
+# 注意：这里的顺序只是候选，不代表优先级；实际优先级由下面的并发测速决定。
+# MIRROR 模式决定哪些源参与测速:
+#   auto   —— 国内加速 + 官方直连一起测速，谁快用谁（默认）
+#   cn     —— 只在国内加速源里测速
+#   direct —— 只在官方直连里测速（只有一个候选，无需测速）
 mirror_entries() {
   cn_list="\
 gh-proxy|https://gh-proxy.com/https://api.github.com|https://gh-proxy.com/https://github.com
@@ -186,8 +191,88 @@ github|https://api.github.com|https://github.com"
   case "$MIRROR" in
     cn)     printf '%s\n' "$cn_list" ;;
     direct) printf '%s\n' "$direct_list" ;;
-    *)      printf '%s\n%s\n' "$cn_list" "$direct_list" ;;   # auto: 加速优先，直连兜底
+    *)      printf '%s\n%s\n' "$cn_list" "$direct_list" ;;   # auto: 两类源都参与测速
   esac
+}
+
+# ---- 并发测速选源 ----
+# API 与下载走的是不同的 URL 路径，可达性/速度可能不同，因此分开探测、各自排序：
+#   - API：探测 <api>/repos/OWNER/REPO/releases/latest（贴近真实用途）
+#   - 下载：探测 <dl>/OWNER/REPO（仓库首页，assets 同域）
+# 每个候选后台并发请求，用 curl 的 time_total 作为延迟，按快→慢排序并缓存。
+# 这样"谁快用谁"，而不是按写死的顺序 + 超时试错。超时只给探测封顶，不决定优先级。
+RANKED_API=""     # 排序后的 API 基址（换行分隔）
+RANKED_DL=""      # 排序后的下载基址（换行分隔）
+PROBE_API_SORTED=""
+PROBE_DL_SORTED=""
+
+# 探测单个 URL 的响应延迟（秒），失败/超时返回 999999
+probe_latency() {
+  url="$1"; latency=""
+  if command -v curl >/dev/null 2>&1; then
+    latency=$(curl -s -o /dev/null -w '%{time_total}' \
+      --connect-timeout "$PROBE_TIMEOUT" --max-time "$PROBE_TIMEOUT" "$url" 2>/dev/null) || latency=""
+  elif command -v wget >/dev/null 2>&1; then
+    s=$(date +%s%N 2>/dev/null || echo 0)
+    wget -q -O /dev/null --timeout="$PROBE_TIMEOUT" --tries=1 "$url" 2>/dev/null || true
+    e=$(date +%s%N 2>/dev/null || echo 0)
+    if [ "$s" != "0" ] && [ "$e" != "0" ]; then
+      latency=$(awk -v a="$s" -v b="$e" 'BEGIN{printf "%.3f",(b-a)/1000000000}')
+    fi
+  fi
+  case "$latency" in
+    ''|*[!0-9.]*) latency="999999" ;;
+  esac
+  printf '%s' "$latency"
+}
+
+rank_mirrors() {
+  [ -n "$RANKED_API" ] && [ -n "$RANKED_DL" ] && return 0
+  say "并发探测镜像延迟（超时上限 ${PROBE_TIMEOUT}s，API/下载分别测速，快→慢）..."
+  pdir=$(mktemp -d)
+  old_ifs=$IFS; IFS='
+'
+  for line in $(mirror_entries); do
+    IFS=$old_ifs
+    [ -z "$line" ] && { IFS='
+'; continue; }
+    name=$(printf '%s' "$line" | cut -d'|' -f1)
+    api=$(printf '%s' "$line" | cut -d'|' -f2)
+    dl=$(printf '%s' "$line" | cut -d'|' -f3)
+    if [ -n "$api" ]; then
+      ( lat=$(probe_latency "$api/repos/$REPO/releases/latest"); printf '%s|%s\n' "$lat" "$api" > "$pdir/api.$name" ) &
+    fi
+    if [ -n "$dl" ]; then
+      ( lat=$(probe_latency "$dl/$REPO"); printf '%s|%s\n' "$lat" "$dl" > "$pdir/dl.$name" ) &
+    fi
+    IFS='
+'
+  done
+  IFS=$old_ifs
+  wait
+  PROBE_API_SORTED=$(cat "$pdir"/api.* 2>/dev/null | sort -t'|' -k1,1n)
+  PROBE_DL_SORTED=$(cat "$pdir"/dl.* 2>/dev/null | sort -t'|' -k1,1n)
+  rm -rf "$pdir"
+  RANKED_API=$(printf '%s\n' "$PROBE_API_SORTED" | awk -F'|' 'NF>=2 {print $2}')
+  RANKED_DL=$(printf '%s\n' "$PROBE_DL_SORTED" | awk -F'|' 'NF>=2 {print $2}')
+  # 打印两份排名，让用户看清为什么选了这个源
+  say "  API 源:"
+  old_ifs=$IFS; IFS='
+'
+  for line in $PROBE_API_SORTED; do
+    IFS=$old_ifs; lat=$(printf '%s' "$line" | cut -d'|' -f1); url=$(printf '%s' "$line" | cut -d'|' -f2)
+    [ "$lat" = "999999" ] && say "    - 超时  $url" || say "    - ${lat}s  $url"
+    IFS='
+'
+  done
+  say "  下载源:"
+  for line in $PROBE_DL_SORTED; do
+    IFS=$old_ifs; lat=$(printf '%s' "$line" | cut -d'|' -f1); url=$(printf '%s' "$line" | cut -d'|' -f2)
+    [ "$lat" = "999999" ] && say "    - 超时  $url" || say "    - ${lat}s  $url"
+    IFS='
+'
+  done
+  IFS=$old_ifs
 }
 
 # 校验 mirror 模式，写错时早点报错而不是下载到一半才发现
@@ -198,24 +283,21 @@ validate_mirror() {
   esac
 }
 
-# 用户显式改过 API_BASE 时优先用它，否则按镜像模式排序
+# 用户显式改过基址时优先用它，否则按对应类别的测速排名（谁快用谁）
 api_sources() {
+  rank_mirrors
   if [ "$API_BASE" != "https://api.github.com" ]; then
     printf '%s\n' "$API_BASE"
   fi
-  mirror_entries | while IFS='|' read -r name api dl; do
-    [ -n "$api" ] && printf '%s\n' "$api"
-  done
+  printf '%s\n' "$RANKED_API"
 }
 
-# 下载基址列表（换行分隔），用户自定义时优先
 download_bases() {
+  rank_mirrors
   if [ "$DOWNLOAD_BASE" != "https://github.com" ]; then
     printf '%s\n' "$DOWNLOAD_BASE"
   fi
-  mirror_entries | while IFS='|' read -r name api dl; do
-    [ -n "$dl" ] && printf '%s\n' "$dl"
-  done
+  printf '%s\n' "$RANKED_DL"
 }
 
 resolve_version() {
@@ -515,25 +597,11 @@ do_doctor() {
     say "  未找到 Release —— 仓库可能还没发版，请用 --from-source 编译安装"
   fi
   say ""
-  say "[4/4] 下载源连通性（镜像模式: $MIRROR，连接超时 ${CONNECT_TIMEOUT}s）"
-  found_dl=0
-  old_ifs=$IFS; IFS='
-'
-  for base in $(download_bases); do
-    IFS=$old_ifs
-    [ -z "$base" ] && { IFS='
-'; continue; }
-    code=$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout "$CONNECT_TIMEOUT" --max-time 15 "$base/$REPO" 2>/dev/null || echo "000")
-    code=$(printf '%s' "$code" | tail -c 3)   # 连接失败时 curl 可能打印多行，只取末尾状态码
-    case "$code" in
-      200|301|302|404) say "  OK   $code  $base"; found_dl=1 ;;
-      *) say "  FAIL $code  $base" ;;
-    esac
-    IFS='
-'
-  done
-  IFS=$old_ifs
-  [ "$found_dl" -eq 1 ] || say "  所有下载源都不可达 —— 试试 --mirror cn 或配置网络代理"
+  say "[4/4] 可用性汇总（模式: $MIRROR，明细见开头排名）"
+  api_ok=$(printf '%s\n' "$PROBE_API_SORTED" | grep -vc '^999999|' || true)
+  dl_ok=$(printf '%s\n' "$PROBE_DL_SORTED" | grep -vc '^999999|' || true)
+  say "  API 源可用: $api_ok   下载源可用: $dl_ok"
+  [ "$api_ok" -gt 0 ] && [ "$dl_ok" -gt 0 ] || say "  部分类型全部不可达 —— 试试 --mirror cn 或配置网络代理"
   say ""
   say "诊断完成。若 Release 状态为'未找到'，先等维护者发版，或用 --from-source。"
 }
@@ -553,6 +621,10 @@ main() {
     do_uninstall
     return 0
   fi
+
+  # 在父 shell 里先测一次速并缓存。后续 api_sources/download_bases 都在 $(...) 子 shell
+  # 里调用，子进程会继承这里的 RANKED 缓存而直接复用，避免重复探测。
+  rank_mirrors
 
   if [ "$DOCTOR" -eq 1 ]; then
     do_doctor

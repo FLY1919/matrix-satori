@@ -135,23 +135,23 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1
 
 安装脚本会：
 - 自动识别系统/架构（Linux x86_64 / arm64 / armv7、Windows x86_64），下载对应 Release 包并校验 SHA256；macOS 会提示改用 `--from-source`
-- 所有 GitHub 请求带**连接超时**（默认 8 秒），国内直连卡住时快速回退，不会一直挂着
-- 下载/API 查询按**镜像优先级**逐个尝试：`auto`（默认，gh-proxy / ghproxy.net / ghfast.top / gitmirror 加速优先，官方直连兜底）、`cn`（只走国内加速）、`direct`（只直连）
+- **安装前并发探测各镜像的真实响应延迟，按最快优先选源**（不是按写死顺序 + 超时试错）。API 与下载分别测速、各自排序，因为两者可达性可能不同。探测结果会在开头打印，超时（默认 5 秒）只用于给慢源封顶，不决定优先级
+- `--mirror` 决定哪些源参与测速：`auto`（默认，加速源 + 官方直连一起测）、`cn`（只测国内加速）、`direct`（只直连，无需测速）
 - 二进制默认装到 `/usr/local/bin`（非 root 装到 `~/.local/bin`；Windows 见上）
 - 生成配置模板（随机 Satori token、homeserver、登录方式等）；Linux root + systemd 时另生成服务单元
 - **仓库还没发 Release 时**给出明确提示，并可用 `--from-source` 从源码编译（项目内置 rsproxy 镜像）
 
-**国内网络很慢时，直接用加速模式（推荐）：**
+**国内网络很慢时，可限定只在加速源里测速（推荐）：**
 
 ```bash
-sh install.sh --mirror cn                       # 只走国内加速源，不碰直连
+sh install.sh --mirror cn                       # 只在国内加速源里选最快的，不碰直连
 # 或设环境变量（Windows: $env:MATRIX_SATORI_MIRROR="cn"）
 MATRIX_SATORI_MIRROR=cn sh install.sh
-# 网络特别差可调小连接超时，更快回退到下一个源
-sh install.sh --mirror cn --connect-timeout 5
+# 探测/连接都很慢时可缩短等待
+sh install.sh --mirror cn --probe-timeout 3 --connect-timeout 5
 ```
 
-Windows 对应用 `-Mirror cn -TimeoutSec 15`。`--mirror direct` 可强制只走官方源。
+Windows 对应用 `-Mirror cn -ProbeTimeoutSec 3 -TimeoutSec 15`。`--mirror direct` 可强制只走官方源。
 
 装完**先编辑配置**再启动：
 
@@ -164,7 +164,7 @@ sudo systemctl enable --now matrix-satori
 
 ### 排障自检
 
-网络报错、装不上时先跑自检（不安装、不改配置，只看工具/平台/Release 状态/镜像连通性）：
+网络报错、装不上时先跑自检（不安装、不改配置，会打印各 API/下载源的实测延迟排名、Release 状态与工具检查）：
 
 ```bash
 sh install.sh --doctor

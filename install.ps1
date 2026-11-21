@@ -28,8 +28,9 @@ param(
     [string]$ApiBase      = "https://api.github.com",
     [string]$DownloadBase = "https://github.com",
     [ValidateSet("auto", "cn", "direct")]
-    [string]$Mirror       = "auto",     # auto=加速优先直连兜底 / cn=只走国内加速 / direct=只直连
-    [int]$TimeoutSec      = 20,         # 单次请求超时；国内直连卡住时快速回退
+    [string]$Mirror       = "auto",     # auto=加速+直连一起测速 / cn=只测国内加速 / direct=只直连
+    [int]$TimeoutSec      = 20,         # 单次下载请求超时
+    [int]$ProbeTimeoutSec = 5,          # 测速探测上限；超时只给探测封顶，不决定优先级
     [string]$Target       = "",
     [switch]$FromSource,
     [switch]$Uninstall,
@@ -46,7 +47,8 @@ function Info { param([string]$m) Write-Host $m -ForegroundColor Green }
 function Warn { param([string]$m) Write-Host $m -ForegroundColor Yellow }
 function Fail { param([string]$m) Write-Host "错误: $m" -ForegroundColor Red; exit 1 }
 
-# ---- 镜像优先级：返回 [pscustomobject] 列表 (Name / Api / Download) ----
+# ---- 镜像候选：返回 [pscustomobject] 列表 (Name / Api / Download) ----
+# 这里只是候选，不代表优先级；实际优先级由并发测速决定（谁快用谁）。
 function Get-Mirrors {
     $cn = @(
         [pscustomobject]@{ Name = "gh-proxy";  Api = "https://gh-proxy.com/https://api.github.com";  Download = "https://gh-proxy.com/https://github.com" },
@@ -60,21 +62,98 @@ function Get-Mirrors {
     switch ($Mirror) {
         "cn"     { return $cn }
         "direct" { return $direct }
-        default  { return @($cn) + @($direct) }   # auto: 加速优先，直连兜底
+        default  { return @($cn) + @($direct) }   # auto: 两类源都参与测速
     }
 }
 
-# 用户自定义基址时优先使用，再按镜像模式追加
+# ---- 并发测速选源 ----
+# API 与下载走不同 URL 路径，速度和可达性可能不同，因此分开测速、各自排序。
+# 用 HttpWebRequest 对真实用途 URL 发 GET，Stopwatch 计时；超时只封顶，不决定优先级。
+$script:RankedApi = $null
+$script:RankedDownload = $null
+$script:ProbeReport = $null
+
+# 探测单个 URL 的耗时（秒），失败/超时返回 999999。定义成脚本块以便 ThreadJob 内联复用。
+$ProbeScript = {
+    param([string]$Url, [int]$ToSec)
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    try {
+        $req = [System.Net.HttpWebRequest]::Create($Url)
+        $req.Method = "GET"
+        $req.Timeout = $ToSec * 1000
+        $req.ReadWriteTimeout = $ToSec * 1000
+        $req.Headers["User-Agent"] = "matrix-satori-installer"
+        $resp = $req.GetResponse()   # 只探测连通与耗时，不读响应体
+        $resp.Close()
+        $sw.Stop()
+        return $sw.Elapsed.TotalSeconds
+    } catch {
+        $sw.Stop()
+        return 999999.0
+    }
+}
+function Invoke-Probe { param([string]$Url) return (& $ProbeScript -Url $Url -ToSec $ProbeTimeoutSec) }
+
+function Invoke-Ranking {
+    if ($null -ne $script:RankedApi -and $null -ne $script:RankedDownload) { return }
+    $mirrors = @(Get-Mirrors)
+    Info "并发探测镜像延迟（超时上限 ${ProbeTimeoutSec}s，API/下载分别测速，快→慢）..."
+
+    # 优先用 ThreadJob 并发；不可用时退化为顺序测速（结果一致，只是慢一些）
+    $hasThreadJob = [bool](Get-Command Start-ThreadJob -ErrorAction SilentlyContinue)
+    $apiJobs = @(); $dlJobs = @(); $apiMeta = @(); $dlMeta = @()
+
+    foreach ($m in $mirrors) {
+        if ($m.Api) {
+            $url = "$($m.Api)/repos/$Repo/releases/latest"
+            $apiMeta += [pscustomobject]@{ Name = $m.Name; Url = $url }
+            if ($hasThreadJob) { $apiJobs += Start-ThreadJob -ScriptBlock $ProbeScript -ArgumentList $url, $ProbeTimeoutSec }
+        }
+        if ($m.Download) {
+            $url = "$($m.Download)/$Repo"
+            $dlMeta += [pscustomobject]@{ Name = $m.Name; Url = $url }
+            if ($hasThreadJob) { $dlJobs += Start-ThreadJob -ScriptBlock $ProbeScript -ArgumentList $url, $ProbeTimeoutSec }
+        }
+    }
+
+    if ($hasThreadJob) {
+        $apiLat = @($apiJobs | ForEach-Object { $r = Receive-Job -Job $_ -Wait; Remove-Job -Job $_; $r })
+        $dlLat  = @($dlJobs  | ForEach-Object { $r = Receive-Job -Job $_ -Wait; Remove-Job -Job $_; $r })
+    } else {
+        $apiLat = @(); foreach ($x in $apiMeta) { $apiLat += Invoke-Probe -Url $x.Url }
+        $dlLat  = @(); foreach ($x in $dlMeta)  { $dlLat  += Invoke-Probe -Url $x.Url }
+    }
+
+    $apiRes = @(); for ($i = 0; $i -lt $apiMeta.Count; $i++) { $apiRes += [pscustomobject]@{ Url = $apiMeta[$i].Url; Lat = $apiLat[$i] } }
+    $dlRes  = @(); for ($i = 0; $i -lt $dlMeta.Count;  $i++) { $dlRes  += [pscustomobject]@{ Url = $dlMeta[$i].Url;  Lat = $dlLat[$i]  } }
+
+    $script:RankedApi = @($apiRes | Sort-Object Lat | ForEach-Object { $_.Url })
+    $script:RankedDownload = @($dlRes | Sort-Object Lat | ForEach-Object { $_.Url })
+
+    Info "  API 源:"
+    foreach ($r in ($apiRes | Sort-Object Lat)) {
+        if ($r.Lat -ge 999998) { Info "    - 超时  $($r.Url)" } else { Info "    - $([math]::Round($r.Lat,3))s  $($r.Url)" }
+    }
+    Info "  下载源:"
+    foreach ($r in ($dlRes | Sort-Object Lat)) {
+        if ($r.Lat -ge 999998) { Info "    - 超时  $($r.Url)" } else { Info "    - $([math]::Round($r.Lat,3))s  $($r.Url)" }
+    }
+    $script:ProbeReport = [pscustomobject]@{ Api = $apiRes; Download = $dlRes }
+}
+
+# 用户自定义基址时优先使用，其余按测速排名（谁快用谁）
 function Get-ApiSources {
+    Invoke-Ranking
     $list = @()
     if ($ApiBase -ne "https://api.github.com") { $list += $ApiBase }
-    foreach ($m in (Get-Mirrors)) { if ($m.Api) { $list += $m.Api } }
+    foreach ($u in $script:RankedApi) { $list += $u }
     return $list
 }
 function Get-DownloadSources {
+    Invoke-Ranking
     $list = @()
     if ($DownloadBase -ne "https://github.com") { $list += $DownloadBase }
-    foreach ($m in (Get-Mirrors)) { if ($m.Download) { $list += $m.Download } }
+    foreach ($u in $script:RankedDownload) { $list += $u }
     return $list
 }
 
