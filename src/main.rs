@@ -1,3 +1,5 @@
+#![recursion_limit = "256"]
+
 use matrix_satori::{build_router, config::Config, init_bridge, resolve_config};
 use tracing::info;
 

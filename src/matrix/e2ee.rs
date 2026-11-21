@@ -24,7 +24,8 @@ use matrix_sdk::ruma::{OwnedDeviceId, OwnedUserId};
 use matrix_sdk::{Client, Room, SessionMeta, SessionTokens};
 use serde_json::{json, Value};
 use std::sync::Arc;
-use tracing::{error, info};
+use std::time::Duration;
+use tracing::{error, info, warn};
 
 /// Any credential carrying a device id can drive the SDK engine. A bare
 /// access token (no device id) or appservice has no device to restore.
@@ -95,15 +96,42 @@ pub async fn start(
         },
     );
 
-    // Initial sync establishes room state and uploads olm keys.
-    let token = client.sync_once(SyncSettings::default()).await?.next_batch;
+    // Persistent sync loop.
+    //
+    // A Matrix `/sync` is a long poll: transient transport failures (TLS cut,
+    // IncompleteMessage, proxy hiccup) are normal and must NOT kill the bridge.
+    // The SDK returns Err on such failures instead of retrying internally, so
+    // we wrap sync() in a backoff loop here. SyncToken defaults to ReusePrevious,
+    // meaning the SDK resumes from the token persisted in the sqlite store —
+    // no events are lost and we don't re-sync from genesis on reconnect.
     info!("[sdk] sync loop started (plain + encrypted rooms)");
-
-    let settings = SyncSettings::default().token(token);
-    if let Err(e) = client.sync(settings).await {
-        error!("[sdk] sync ended: {}", e);
+    let mut backoff_secs: u64 = 1;
+    loop {
+        // default() => token = ReusePrevious (auto-resume from store).
+        match client.sync(SyncSettings::default()).await {
+            Ok(()) => {
+                // sync() only returns Ok if it was stopped cleanly; treat as a
+                // reconnect with a short delay and reset backoff.
+                warn!(
+                    "[sdk] sync stopped cleanly, reconnecting in {}s",
+                    backoff_secs
+                );
+            }
+            Err(e) => {
+                error!("[sdk] sync error (reconnect in {}s): {}", backoff_secs, e);
+            }
+        }
+        tokio::time::sleep(Duration::from_secs(backoff_secs)).await;
+        backoff_secs = next_backoff(backoff_secs);
     }
+    #[allow(unreachable_code)]
     Ok(())
+}
+
+/// Exponential backoff with a 30s ceiling: 1 → 2 → 4 → 8 → 16 → 30 → 30 ...
+const MAX_BACKOFF: u64 = 30;
+fn next_backoff(current: u64) -> u64 {
+    current.saturating_mul(2).min(MAX_BACKOFF)
 }
 
 /// Rebuild the wire JSON shape that `EventInfo::from_value` expects from a
@@ -142,6 +170,16 @@ mod tests {
             device_id: device.map(String::from),
             method: "sso",
         }
+    }
+
+    #[test]
+    fn sync_backoff_doubles_and_caps() {
+        assert_eq!(next_backoff(1), 2);
+        assert_eq!(next_backoff(2), 4);
+        assert_eq!(next_backoff(8), 16);
+        assert_eq!(next_backoff(16), 30);
+        assert_eq!(next_backoff(30), 30);
+        assert_eq!(next_backoff(u64::MAX), 30); // saturating, no overflow
     }
 
     #[test]

@@ -1,4 +1,5 @@
 //! matrix-satori: a Satori protocol server backed by Matrix.
+#![recursion_limit = "256"]
 
 pub mod auth;
 pub mod bridge;
