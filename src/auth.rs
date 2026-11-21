@@ -181,17 +181,39 @@ impl AuthClient {
     }
 
     async fn as_access_token(&self) -> Result<Credentials> {
-        let user_id = if self.config.user_id.is_empty() {
+        // Ask whoami for both user_id and device_id. The device id matters for
+        // the SDK: restoring a session under a generated device makes the token
+        // mismatch the real device and the homeserver rejects keys/upload
+        // ("Provided device_id does not match that of the authenticated user
+        // device"). Prefer an explicit --device-id, else what whoami returns.
+        let mut device_id = if self.config.device_id.is_empty() {
+            None
+        } else {
+            Some(self.config.device_id.clone())
+        };
+        let user_id = if self.config.user_id.is_empty() || device_id.is_none() {
             let v = self
                 .get_json(
                     "/_matrix/client/v3/account/whoami",
                     Some(&self.config.access_token),
                 )
                 .await?;
-            v.get("user_id")
-                .and_then(Value::as_str)
-                .unwrap_or("")
-                .to_string()
+            let uid = if self.config.user_id.is_empty() {
+                v.get("user_id")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string()
+            } else {
+                self.config.user_id.clone()
+            };
+            if device_id.is_none() {
+                device_id = v
+                    .get("device_id")
+                    .and_then(Value::as_str)
+                    .filter(|d| !d.is_empty())
+                    .map(String::from);
+            }
+            uid
         } else {
             self.config.user_id.clone()
         };
@@ -203,7 +225,7 @@ impl AuthClient {
         Ok(Credentials {
             access_token: self.config.access_token.clone(),
             user_id,
-            device_id: None,
+            device_id,
             method: "access-token",
         })
     }

@@ -47,7 +47,21 @@ pub async fn start(
     creds: Credentials,
     bridge: Arc<Bridge>,
 ) -> anyhow::Result<()> {
-    let store_dir = config.state_dir.join("crypto-store");
+    // The SDK sqlite store binds to one account (user_id + device_id) and
+    // refuses to open if a different account was stored there ("account in the
+    // store doesn't match the account in the constructor"). Namespace the store
+    // per account so multiple accounts / a changed device can coexist under the
+    // same state_dir without clobbering each other.
+    let account_key = format!(
+        "{}@{}",
+        creds.user_id.replace(['@', ':', '/', '\\'], "_"),
+        creds
+            .device_id
+            .as_deref()
+            .unwrap_or("nodevice")
+            .replace(['/', '\\'], "_")
+    );
+    let store_dir = config.state_dir.join("crypto-store").join(account_key);
     std::fs::create_dir_all(&store_dir)?;
 
     let client = Client::builder()
