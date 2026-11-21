@@ -280,6 +280,85 @@ impl MatrixClient {
             .unwrap_or_default())
     }
 
+    /// GET /_matrix/client/v3/rooms/{room}/members with full profile info.
+    /// Unlike `room_members` (ids only) this keeps `displayname` / `avatar_url`
+    /// from each membership event's content, so `guild.member.list` can return
+    /// complete users instead of bare ids.
+    pub async fn room_member_details(&self, room_id: &str) -> Result<Vec<RoomMemberDetail>> {
+        let v = self
+            .request(
+                self.http
+                    .get(format!(
+                        "{}/_matrix/client/v3/rooms/{}/members",
+                        self.base(),
+                        urlencoding(room_id)
+                    ))
+                    .bearer_auth(&self.config.access_token)
+                    .query(&[("membership", "join")]),
+            )
+            .await?;
+        Ok(v.get("chunk")
+            .and_then(Value::as_array)
+            .map(|a| {
+                a.iter()
+                    .filter_map(|e| {
+                        let id = e.get("state_key").and_then(Value::as_str)?;
+                        if !id.starts_with('@') {
+                            return None;
+                        }
+                        let content = e.get("content");
+                        Some(RoomMemberDetail {
+                            user_id: id.to_string(),
+                            displayname: content
+                                .and_then(|c| c.get("displayname"))
+                                .and_then(Value::as_str)
+                                .map(String::from),
+                            avatar_url: content
+                                .and_then(|c| c.get("avatar_url"))
+                                .and_then(Value::as_str)
+                                .map(String::from),
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default())
+    }
+
+    /// GET /_matrix/client/v3/account_data/m.direct -> list of user ids that
+    /// have at least one direct room with the account. Matrix has no explicit
+    /// "friend" concept; direct-chat partners are the closest equivalent and
+    /// are what clients treat as contacts. Returns an empty list when absent.
+    pub async fn direct_users(&self) -> Result<Vec<String>> {
+        let v = self
+            .request(
+                self.http
+                    .get(format!(
+                        "{}/_matrix/client/v3/account_data/m.direct",
+                        self.base()
+                    ))
+                    .bearer_auth(&self.config.access_token),
+            )
+            .await;
+        let v = match v {
+            Ok(v) => v,
+            Err(MatrixError::Api { status: 404, .. }) => return Ok(Vec::new()),
+            Err(e) => return Err(e),
+        };
+        // Shape: { "@user:server": ["!room1", "!room2"], ... }
+        let mut users: Vec<String> = v
+            .as_object()
+            .map(|m| {
+                m.keys()
+                    .filter(|k| k.starts_with('@'))
+                    .cloned()
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        users.sort();
+        users.dedup();
+        Ok(users)
+    }
+
     /// GET /_matrix/client/v3/profile/{user_id}
     pub async fn profile(&self, user_id: &str) -> Result<UserProfile> {
         let v = self

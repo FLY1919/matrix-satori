@@ -63,6 +63,15 @@ pub struct State {
     pub events: Vec<Value>,
 }
 
+/// A joined room member with the profile fields carried by the membership
+/// event. Used to build complete Satori `User` objects for member lists.
+#[derive(Debug, Clone, Default)]
+pub struct RoomMemberDetail {
+    pub user_id: String,
+    pub displayname: Option<String>,
+    pub avatar_url: Option<String>,
+}
+
 /// Extract common fields from a Matrix room event.
 #[derive(Debug, Clone, Default)]
 pub struct EventInfo {

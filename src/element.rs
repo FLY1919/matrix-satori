@@ -577,10 +577,18 @@ fn mxc_to_http(src: &str, homeserver: &str) -> String {
 }
 
 /// Translate a subset of Matrix HTML into Satori elements.
+///
+/// A Matrix mention is `<a href="https://matrix.to/#/@u:s">display</a>`. It
+/// must become a single `<at id="@u:s" name="display"/>` — the link text is the
+/// mention label, not a separate text node. We track an active at-link with a
+/// small state machine so the inner text is absorbed into the `name` attribute
+/// and the closing `</a>` is consumed rather than emitted.
 fn html_to_satori(html: &str, homeserver: &str, self_id: &str) -> String {
     let chars: Vec<char> = html.chars().collect();
     let mut out = String::new();
     let mut i = 0;
+    // When set: we are inside a matrix.to link; collect its label here.
+    let mut at_link: Option<String> = None;
     while i < chars.len() {
         if chars[i] == '<' {
             let mut j = i + 1;
@@ -599,7 +607,12 @@ fn html_to_satori(html: &str, homeserver: &str, self_id: &str) -> String {
                 j += 1;
             }
             if j >= chars.len() {
-                out.push('<');
+                // Malformed tag: if inside an at link, treat literally.
+                if let Some(label) = at_link.as_mut() {
+                    label.push('<');
+                } else {
+                    out.push('<');
+                }
                 i += 1;
                 continue;
             }
@@ -618,51 +631,33 @@ fn html_to_satori(html: &str, homeserver: &str, self_id: &str) -> String {
             let attrs = parse_attrs(raw);
             let tag = name_only.trim_end_matches('/');
 
-            let emit_open = |out: &mut String, tag: &str, self_close: bool| match tag {
-                "at" | "sharp" => {
-                    let id = attrs.get("id").cloned().unwrap_or_default();
-                    let name = attrs.get("name").cloned().unwrap_or_else(|| id.clone());
-                    if self_close {
-                        out.push_str(&format!(
-                            "<at id=\"{}\" name=\"{}\"/>",
-                            html_escape_attr(&id),
-                            html_escape_attr(&name)
-                        ));
-                    } else {
-                        out.push_str(&format!(
-                            "<at id=\"{}\" name=\"{}\">",
-                            html_escape_attr(&id),
-                            html_escape_attr(&name)
-                        ));
-                    }
-                }
-                "img" | "audio" | "video" | "file" => {
-                    let src = attrs.get("src").cloned().unwrap_or_default();
-                    let src = mxc_to_http(&src, homeserver);
-                    out.push_str(&format!("<{} src=\"{}\"/>", tag, html_escape_attr(&src)));
-                }
-                _ => {
-                    if self_close {
-                        out.push_str("<br/>");
-                    } else {
-                        out.push('<');
-                        out.push_str(tag);
-                        out.push('>');
-                    }
-                }
-            };
-
             if tag == "a" && !closing {
                 let href = attrs.get("href").cloned().unwrap_or_default();
                 if let Some(mxid) = href.strip_prefix("https://matrix.to/#/") {
-                    out.push_str(&format!("<at id=\"{}\"/>", html_escape_attr(mxid)));
+                    // Start collecting the mention label; emit once we see </a>.
+                    // Buffer stores "mxid\u{1}label" — separator splits the two.
+                    at_link = Some(format!("{}\u{1}", mxid));
                 } else {
                     out.push_str("<a href=\"");
                     out.push_str(&html_escape_attr(&href));
                     out.push_str("\">");
                 }
             } else if tag == "a" && closing {
-                out.push_str("</a>");
+                if let Some(buf) = at_link.take() {
+                    // buf = "<mxid>\u{1}<label>"
+                    let (mxid, label) = buf.split_once('\u{1}').unwrap_or((&buf, ""));
+                    let name = if label.is_empty() { mxid } else { label };
+                    out.push_str(&format!(
+                        "<at id=\"{}\" name=\"{}\"/>",
+                        html_escape_attr(mxid),
+                        html_escape_attr(name)
+                    ));
+                } else {
+                    out.push_str("</a>");
+                }
+            } else if let Some(buf) = at_link.as_mut() {
+                // Inside a mention: absorb nested tags minimally as text.
+                buf.push_str(raw);
             } else if tag == "img" {
                 let src = attrs.get("src").cloned().unwrap_or_default();
                 let src = mxc_to_http(&src, homeserver);
@@ -691,16 +686,59 @@ fn html_to_satori(html: &str, homeserver: &str, self_id: &str) -> String {
                     "p" | "div" | "h1" | "h2" | "h3" | "blockquote" => {}
                     _ => {
                         if tag.len() <= 16 && !tag.is_empty() {
-                            emit_open(&mut out, tag, self_closing);
+                            match tag {
+                                "at" | "sharp" => {
+                                    let id = attrs.get("id").cloned().unwrap_or_default();
+                                    let name =
+                                        attrs.get("name").cloned().unwrap_or_else(|| id.clone());
+                                    if self_closing {
+                                        out.push_str(&format!(
+                                            "<at id=\"{}\" name=\"{}\"/>",
+                                            html_escape_attr(&id),
+                                            html_escape_attr(&name)
+                                        ));
+                                    } else {
+                                        out.push_str(&format!(
+                                            "<at id=\"{}\" name=\"{}\">",
+                                            html_escape_attr(&id),
+                                            html_escape_attr(&name)
+                                        ));
+                                    }
+                                }
+                                "img" | "audio" | "video" | "file" => {
+                                    let src = attrs.get("src").cloned().unwrap_or_default();
+                                    let src = mxc_to_http(&src, homeserver);
+                                    out.push_str(&format!(
+                                        "<{} src=\"{}\"/>",
+                                        tag,
+                                        html_escape_attr(&src)
+                                    ));
+                                }
+                                _ => out.push_str(tag),
+                            }
                         }
                     }
                 }
             }
             i = j + 1;
+        } else if let Some(buf) = at_link.as_mut() {
+            // Absorb the mention label text into the buffer.
+            buf.push(chars[i]);
+            i += 1;
         } else {
             out.push(chars[i]);
             i += 1;
         }
+    }
+    // Unclosed at-link: flush it as an at element with whatever label we have.
+    if let Some(buf) = at_link.take() {
+        let (mxid, label) = buf.split_once('\u{1}').unwrap_or((&buf, ""));
+        let name = if label.is_empty() { mxid } else { label };
+        out.push_str(&format!(
+            "<at id=\"{}\" name=\"{}\"/>",
+            html_escape_attr(mxid),
+            html_escape_attr(name)
+        ));
     }
     let _ = self_id;
     out
@@ -868,7 +906,11 @@ mod tests {
             "formatted_body": "hi <a href=\"https://matrix.to/#/@u:s\">Bob</a>"
         });
         let s = matrix_to_satori(&v, "https://m.example.com", "@bot:s");
-        assert!(s.contains("<at id=\"@u:s\"/>"), "got: {}", s);
+        // A mention becomes a single <at> carrying the label as name; the link
+        // text must NOT be duplicated as a separate text node.
+        assert!(s.contains("<at id=\"@u:s\" name=\"Bob\"/>"), "got: {}", s);
+        assert!(!s.contains("Bob</a>"), "link text leaked: {}", s);
+        assert_eq!(s, "hi <at id=\"@u:s\" name=\"Bob\"/>");
     }
 
     #[test]

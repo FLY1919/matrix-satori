@@ -11,6 +11,9 @@ use std::sync::Arc;
 use tokio::sync::broadcast;
 use tracing::{debug, error, info, warn};
 
+/// Cached (display name, avatar http url) for a Matrix user id.
+type UserProfileCache = HashMap<String, (Option<String>, Option<String>)>;
+
 pub struct Bridge {
     pub matrix: MatrixClient,
     pub config: Arc<Config>,
@@ -24,6 +27,33 @@ pub struct Bridge {
     last_token: std::sync::Mutex<String>,
     sn: AtomicI64,
     room_names: tokio::sync::RwLock<HashMap<String, String>>,
+    /// user_id -> (displayname, avatar http url). Filled lazily from profile
+    /// lookups so events carry complete users (name/avatar), not bare ids.
+    user_profiles: tokio::sync::RwLock<UserProfileCache>,
+}
+
+impl Bridge {
+    /// Look up a user's display name and avatar, caching the result. Falls back
+    /// to the id localpart when the profile endpoint has no display name.
+    pub(crate) async fn user_info(&self, user_id: &str) -> (Option<String>, Option<String>) {
+        if let Some(hit) = self.user_profiles.read().await.get(user_id) {
+            return hit.clone();
+        }
+        let (name, avatar) = match self.matrix.profile(user_id).await {
+            Ok(p) => (
+                p.displayname
+                    .filter(|n| !n.is_empty())
+                    .or_else(|| Some(display_name_from_user_id(user_id))),
+                p.avatar_url.map(|u| self.config.mxc_to_http(&u)),
+            ),
+            Err(_) => (Some(display_name_from_user_id(user_id)), None),
+        };
+        self.user_profiles
+            .write()
+            .await
+            .insert(user_id.to_string(), (name.clone(), avatar.clone()));
+        (name, avatar)
+    }
 }
 
 /// Extract the localpart from a Matrix user id: `@fly_hx:knoten.chat` -> `fly_hx`.
@@ -73,6 +103,7 @@ impl Bridge {
             last_token: std::sync::Mutex::new(String::new()),
             sn: AtomicI64::new(0),
             room_names: tokio::sync::RwLock::new(HashMap::new()),
+            user_profiles: tokio::sync::RwLock::new(HashMap::new()),
         }
     }
 
@@ -217,11 +248,12 @@ impl Bridge {
         let is_self = info.sender == self.self_id;
         let content = matrix_to_satori(&info.content, &self.config.homeserver, &self.self_id);
 
+        let (user_name, user_avatar) = self.user_info(&info.sender).await;
         let user = User {
             id: info.sender.clone(),
-            name: None,
+            name: user_name,
             nick: None,
-            avatar: None,
+            avatar: user_avatar,
             discriminator: None,
             is_bot: Some(is_self),
         };
@@ -320,11 +352,12 @@ impl Bridge {
             .and_then(Value::as_str)
             .unwrap_or("")
             .to_string();
+        let (user_name, user_avatar) = self.user_info(&info.sender).await;
         let user = User {
             id: info.sender.clone(),
-            name: None,
+            name: user_name,
             nick: None,
-            avatar: None,
+            avatar: user_avatar,
             discriminator: None,
             is_bot: None,
         };
@@ -358,14 +391,30 @@ impl Bridge {
             "invite" => "guild-member-request",
             _ => return,
         };
+        // Membership events carry displayname/avatar directly in content.
+        let mem_name = info
+            .content
+            .get("displayname")
+            .and_then(Value::as_str)
+            .map(String::from);
+        let mem_avatar = info
+            .content
+            .get("avatar_url")
+            .and_then(Value::as_str)
+            .map(|u| self.config.mxc_to_http(u));
         let user = User {
             id: state_key.clone(),
-            name: None,
+            name: mem_name.clone(),
             nick: None,
-            avatar: None,
+            avatar: mem_avatar.clone(),
             discriminator: None,
             is_bot: None,
         };
+        // Keep the profile cache warm for later message events.
+        self.user_profiles
+            .write()
+            .await
+            .insert(state_key.clone(), (mem_name.clone(), mem_avatar.clone()));
         let mut event = self.base_event(event_type, now_ms(), Some(&user));
         event.guild = Some(Guild {
             id: room_id.to_string(),
@@ -381,9 +430,9 @@ impl Bridge {
         });
         event.member = Some(crate::satori::GuildMember {
             user: Some(user),
-            name: None,
+            name: mem_name,
             nick: None,
-            avatar: None,
+            avatar: mem_avatar,
             joined_at: None,
         });
         self.broadcast(event);

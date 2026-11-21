@@ -362,13 +362,15 @@ async fn dispatch(bridge: &Arc<Bridge>, method: &str, a: &Value, _q: &Option<Str
                 .ok_or_else(|| (StatusCode::BAD_REQUEST, "guild_id required".to_string()))?;
             let members = bridge
                 .matrix
-                .room_members(room)
+                .room_member_details(room)
                 .await
                 .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
             let mut data = Vec::new();
-            for id in members {
+            for m in members {
                 data.push(User {
-                    id,
+                    id: m.user_id,
+                    name: m.displayname,
+                    avatar: m.avatar_url.map(|u| bridge.config.mxc_to_http(&u)),
                     ..Default::default()
                 });
             }
@@ -556,7 +558,34 @@ async fn dispatch(bridge: &Arc<Bridge>, method: &str, a: &Value, _q: &Option<Str
                 .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
             Ok(json!({}))
         }
-        "guild.role.list" | "guild.member.role.list" | "friend.list" => Ok(json!({"data": []})),
+        "friend.list" => {
+            // Matrix has no explicit friends; direct-chat partners (m.direct)
+            // are the closest Satori `friend` equivalent. Fill in their profile
+            // so the friend list carries real names/avatars.
+            let users = bridge
+                .matrix
+                .direct_users()
+                .await
+                .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+            let mut data = Vec::new();
+            for uid in users {
+                let (name, avatar) = match bridge.matrix.profile(&uid).await {
+                    Ok(p) => (
+                        p.displayname,
+                        p.avatar_url.map(|u| bridge.config.mxc_to_http(&u)),
+                    ),
+                    Err(_) => (None, None),
+                };
+                data.push(User {
+                    id: uid,
+                    name,
+                    avatar,
+                    ..Default::default()
+                });
+            }
+            Ok(json!({"data": data}))
+        }
+        "guild.role.list" | "guild.member.role.list" => Ok(json!({"data": []})),
         "guild.role.create"
         | "guild.role.update"
         | "guild.role.delete"
