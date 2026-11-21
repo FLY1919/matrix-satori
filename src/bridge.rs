@@ -3,7 +3,7 @@
 use crate::config::Config;
 use crate::element::matrix_to_satori;
 use crate::matrix::{EventInfo, MatrixClient, SyncResponse};
-use crate::satori::{Channel, Event, Guild, Login, Message, User};
+use crate::satori::{Channel, Event, EventLogin, Guild, Login, Message, User};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicI64, Ordering};
@@ -467,11 +467,21 @@ impl Bridge {
         self.broadcast(event);
     }
 
+    /// Non-login events carry a reduced `login` resource: only sn/user/platform,
+    /// matching the Satori protocol. The full login is sent in READY/login.get.
+    fn event_login(&self) -> EventLogin {
+        EventLogin {
+            sn: self.login.sn,
+            user: self.login.user.clone(),
+            platform: self.login.platform.clone(),
+        }
+    }
+
     fn base_event(&self, kind: &str, timestamp: i64, user: Option<&User>) -> Event {
         Event {
             sn: self.next_sn(),
             event_type: kind.to_string(),
-            login: self.login.clone(),
+            login: self.event_login(),
             self_id: self.self_id.clone(),
             platform: "matrix".into(),
             timestamp,

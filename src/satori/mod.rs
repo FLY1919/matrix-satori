@@ -137,6 +137,21 @@ pub struct Meta {
     pub proxy_urls: Vec<String>,
 }
 
+/// The reduced login carried by a non-login event. Per Satori protocol, a
+/// non-login event's `login` resource contains only `sn`, `user` and
+/// `platform` (the full login is delivered once in READY / login.get). The
+/// Koishi adapter reads `login.user.id` and `login.platform` from it, so all
+/// three fields are present here and nothing extra is emitted.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct EventLogin {
+    pub sn: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user: Option<User>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub platform: Option<String>,
+}
+
 /// Satori event; the client dispatches by `type`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -144,7 +159,7 @@ pub struct Event {
     pub sn: i64,
     #[serde(rename = "type")]
     pub event_type: String,
-    pub login: Login,
+    pub login: EventLogin,
     pub self_id: String,
     pub platform: String,
     pub timestamp: i64,
@@ -214,5 +229,101 @@ mod tests {
         assert_eq!(Payload::new(Opcode::Identify, serde_json::json!({})).op, 3);
         assert_eq!(Opcode::Ready as u8, 4);
         assert_eq!(Opcode::Event as u8, 0);
+    }
+
+    /// A non-login event must serialize with a reduced `login` (sn/user/platform
+    /// only), full `self_id`/`platform` at the top level, and a message whose
+    /// `channel.id` equals `guild.id` — the "频道/群聊 id 一致" contract that
+    /// Koishi relies on for session routing (session.channelId == guildId).
+    #[test]
+    fn message_event_is_satori_compliant() {
+        let room = "!room:example.org";
+        let event = Event {
+            sn: 7,
+            event_type: "message-created".into(),
+            login: EventLogin {
+                sn: 1,
+                user: Some(User {
+                    id: "@bot:example.org".into(),
+                    name: Some("bot".into()),
+                    ..Default::default()
+                }),
+                platform: Some("matrix".into()),
+            },
+            self_id: "@bot:example.org".into(),
+            platform: "matrix".into(),
+            timestamp: 1234,
+            channel: Some(Channel {
+                id: room.into(),
+                r#type: 0,
+                name: Some("group".into()),
+                parent_id: None,
+                position: None,
+            }),
+            guild: Some(Guild {
+                id: room.into(),
+                name: Some("group".into()),
+                avatar: None,
+            }),
+            user: Some(User {
+                id: "@alice:example.org".into(),
+                ..Default::default()
+            }),
+            member: None,
+            message: Some(Message {
+                id: Some("$ev".into()),
+                channel: Some(Channel {
+                    id: room.into(),
+                    r#type: 0,
+                    ..Default::default()
+                }),
+                guild: Some(Guild {
+                    id: room.into(),
+                    ..Default::default()
+                }),
+                user: Some(User {
+                    id: "@alice:example.org".into(),
+                    ..Default::default()
+                }),
+                content: Some("hi".into()),
+                created_at: Some(1234),
+                ..Default::default()
+            }),
+            operator: None,
+            referrer: None,
+        };
+
+        let v = serde_json::to_value(&event).unwrap();
+        // wire format: snake_case, `type` renamed from event_type
+        assert_eq!(v["type"], "message-created");
+        assert_eq!(v["self_id"], "@bot:example.org");
+        assert_eq!(v["platform"], "matrix");
+        assert_eq!(v["sn"], 7);
+        // reduced login: exactly sn/user/platform, no adapter/status/features
+        assert_eq!(v["login"]["sn"], 1);
+        assert_eq!(v["login"]["user"]["id"], "@bot:example.org");
+        assert_eq!(v["login"]["platform"], "matrix");
+        assert!(v["login"].get("adapter").is_none());
+        assert!(v["login"].get("status").is_none());
+        assert!(v["login"].get("features").is_none());
+        // 频道/群聊 id 一致 (event + message 两层都要一致)
+        assert_eq!(v["channel"]["id"], v["guild"]["id"]);
+        assert_eq!(v["message"]["channel"]["id"], v["message"]["guild"]["id"]);
+        assert_eq!(v["channel"]["id"], v["message"]["channel"]["id"]);
+        // message content is a Satori element string
+        assert_eq!(v["message"]["content"], "hi");
+    }
+
+    #[test]
+    fn event_login_omits_none_fields() {
+        let v = serde_json::to_value(EventLogin {
+            sn: 1,
+            user: None,
+            platform: None,
+        })
+        .unwrap();
+        assert_eq!(v["sn"], 1);
+        assert!(v.get("user").is_none());
+        assert!(v.get("platform").is_none());
     }
 }
