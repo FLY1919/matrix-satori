@@ -71,16 +71,30 @@ fn display_name_from_user_id(user_id: &str) -> String {
 }
 
 impl Bridge {
-    pub fn new(matrix: MatrixClient, config: Arc<Config>, self_id: String) -> Self {
-        let display_name = display_name_from_user_id(&self_id);
+    /// `profile` is `(displayname, avatar http url)` for our own account when
+    /// available; used so the bot identity in Koishi shows the real name/avatar.
+    pub fn new(
+        matrix: MatrixClient,
+        config: Arc<Config>,
+        self_id: String,
+        profile: Option<(Option<String>, Option<String>)>,
+    ) -> Self {
+        let fallback_name = display_name_from_user_id(&self_id);
+        let (name, nick, avatar) = match profile {
+            Some((display, avatar)) => {
+                let n = display.filter(|s| !s.is_empty()).unwrap_or(fallback_name);
+                (Some(n.clone()), Some(n), avatar)
+            }
+            None => (Some(fallback_name.clone()), Some(fallback_name), None),
+        };
         let login = Login {
             sn: 1,
             adapter: "matrix".into(),
             user: Some(User {
                 id: self_id.clone(),
-                name: Some(display_name.clone()),
-                nick: Some(display_name),
-                avatar: None,
+                name,
+                nick,
+                avatar,
                 discriminator: None,
                 is_bot: Some(true),
             }),

@@ -20,6 +20,7 @@ use matrix_sdk::authentication::matrix::MatrixSession;
 use matrix_sdk::config::SyncSettings;
 use matrix_sdk::event_handler::Ctx;
 use matrix_sdk::ruma::events::room::message::SyncRoomMessageEvent;
+use matrix_sdk::ruma::events::sticker::SyncStickerEvent;
 use matrix_sdk::ruma::{OwnedDeviceId, OwnedUserId};
 use matrix_sdk::{Client, Room, SessionMeta, SessionTokens};
 use serde_json::{json, Value};
@@ -109,6 +110,16 @@ pub async fn start(
             }
         },
     );
+    // Matrix stickers are a separate message-like event (m.sticker), not an
+    // m.room.message, so they never reach the handler above. Convert them into
+    // the same wire shape as an m.image message so Satori sees them as `<img>`.
+    client.add_event_handler(
+        |event: SyncStickerEvent, room: Room, bridge: Ctx<Arc<Bridge>>| async move {
+            if let Some(v) = sticker_value(&event, room.room_id().as_str()) {
+                bridge.handle_event_json(room.room_id().as_str(), &v).await;
+            }
+        },
+    );
 
     // Persistent sync loop.
     //
@@ -163,6 +174,44 @@ fn message_value(event: &SyncRoomMessageEvent, room_id: &str) -> Option<Value> {
         }
         SyncRoomMessageEvent::Redacted(_) => return None,
     };
+    Some(json!({
+        "type": "m.room.message",
+        "event_id": event_id,
+        "sender": sender,
+        "origin_server_ts": ts,
+        "room_id": room_id,
+        "content": content,
+    }))
+}
+
+/// Convert an `m.sticker` sync event into the wire shape of an `m.image`
+/// `m.room.message`, so the normal message pipeline turns it into a Satori
+/// `<img>` element. Stickers are images with alt text in Matrix.
+fn sticker_value(event: &SyncStickerEvent, room_id: &str) -> Option<Value> {
+    use matrix_sdk::ruma::events::sticker::StickerMediaSource;
+    let e = match event {
+        SyncStickerEvent::Original(e) => e,
+        SyncStickerEvent::Redacted(_) => return None,
+    };
+    let (event_id, sender, ts) = (
+        e.event_id.as_str().to_string(),
+        e.sender.as_str().to_string(),
+        u64::from(e.origin_server_ts.0) as i64,
+    );
+    let body = e.content.body.clone();
+    let url = match &e.content.source {
+        StickerMediaSource::Plain(url) => url.to_string(),
+        // Encrypted stickers (and future variants) cannot be represented as a
+        // plain mxc image here; skip them.
+        _ => return None,
+    };
+    let info = serde_json::to_value(&e.content.info).unwrap_or_else(|_| json!({}));
+    let content = json!({
+        "msgtype": "m.image",
+        "body": body,
+        "url": url,
+        "info": info,
+    });
     Some(json!({
         "type": "m.room.message",
         "event_id": event_id,

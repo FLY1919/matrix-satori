@@ -147,8 +147,17 @@ pub async fn init_bridge(config: Config) -> anyhow::Result<(Arc<Bridge>, Arc<Con
         config.user_id.clone()
     };
 
+    // Load our own display name + avatar so Koishi shows the real bot identity
+    // instead of the id localpart with no avatar.
+    let profile = match matrix.profile(&user_id).await {
+        Ok(p) => Some((p.displayname, p.avatar_url.map(|u| config.mxc_to_http(&u)))),
+        Err(e) => {
+            tracing::debug!("could not load own profile: {}", e);
+            None
+        }
+    };
     Ok((
-        Arc::new(Bridge::new(matrix, config.clone(), user_id)),
+        Arc::new(Bridge::new(matrix, config.clone(), user_id, profile)),
         config,
     ))
 }
