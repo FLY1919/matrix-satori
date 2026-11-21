@@ -560,3 +560,235 @@ async fn no_registered_method_returns_404() {
         assert_ne!(status, 404, "method {} returned 404: {}", m, body);
     }
 }
+
+/// End-to-end: a Satori message containing every standard element must reach
+/// Matrix /send intact (send direction). We send one element at a time so each
+/// becomes its own m.room.message and can be inspected independently.
+#[tokio::test]
+async fn message_create_all_elements_reach_matrix() {
+    let mock = Arc::new(MockState {
+        syncs: vec![json!({"next_batch": "s0", "rooms": {"join": {}}})],
+        ..Default::default()
+    });
+    let (mp, sp) = spawn_server(mock.clone(), |b, _| build_router(b, "")).await;
+    let _ = mp;
+    let client = reqwest::Client::new();
+    let url = format!("http://127.0.0.1:{}/v1/message.create", sp);
+
+    let cases: Vec<(&str, serde_json::Value)> = vec![
+        ("plain text", json!({"msgtype": "m.text"})),
+        (
+            r#"<at id="@u:s" name="Bob"/>"#,
+            json!({"expect_body": "Bob", "link": "https://matrix.to/#/@u:s"}),
+        ),
+        (
+            r#"<a href="https://example.com">site</a>"#,
+            json!({"expect_body": "site", "link": "https://example.com"}),
+        ),
+        (r#"<b>bold</b>"#, json!({"html": "<b>bold</b>"})),
+        (
+            r#"<i>it</i><u>ul</u><s>del</s><code>c</code>"#,
+            json!({"html_all": ["<i>it</i>", "<u>ul</u>", "<del>del</del>", "<code>c</code>"]}),
+        ),
+        (
+            r#"<img src="mxc://s/i" width="100"/>"#,
+            json!({"msgtype": "m.image", "url": "mxc://s/i", "w": 100}),
+        ),
+        (
+            r#"<audio src="mxc://s/a" duration="12"/>"#,
+            json!({"msgtype": "m.audio", "url": "mxc://s/a", "duration": 12}),
+        ),
+        (
+            r#"<video src="mxc://s/v" width="640"/>"#,
+            json!({"msgtype": "m.video", "url": "mxc://s/v", "w": 640}),
+        ),
+        (
+            r#"<file src="mxc://s/f" title="doc.pdf"/>"#,
+            json!({"msgtype": "m.file", "url": "mxc://s/f", "body": "doc.pdf"}),
+        ),
+        (
+            r#"<quote id="$e1">quoted</quote>"#,
+            json!({"reply": "$e1", "body": "quoted"}),
+        ),
+    ];
+
+    for (idx, (content, _)) in cases.iter().enumerate() {
+        let resp = client
+            .post(&url)
+            .bearer_auth("satori-secret")
+            .header("Satori-Platform", "matrix")
+            .header("Satori-User-ID", "@bot:example.com")
+            .json(&json!({"channel_id": "!room:example.com", "content": content}))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), 200, "case {}: {}", idx, content);
+    }
+
+    let sent = mock.sent.lock().await;
+    assert_eq!(sent.len(), cases.len(), "one /send per element group");
+
+    for (idx, (_, exp)) in cases.iter().enumerate() {
+        let c = &sent[idx]["content"];
+        if let Some(mt) = exp.get("msgtype").and_then(Value::as_str) {
+            assert_eq!(c["msgtype"], mt, "case {} msgtype", idx);
+        }
+        if let Some(b) = exp
+            .get("expect_body")
+            .or_else(|| exp.get("body"))
+            .and_then(Value::as_str)
+        {
+            assert!(
+                c["body"].as_str().unwrap_or("").contains(b),
+                "case {} body: {}",
+                idx,
+                c
+            );
+        }
+        if let Some(link) = exp.get("link").and_then(Value::as_str) {
+            let html = c["formatted_body"].as_str().unwrap_or("");
+            assert!(
+                html.contains(link),
+                "case {} link {} missing in {}",
+                idx,
+                link,
+                html
+            );
+        }
+        if let Some(h) = exp.get("html").and_then(Value::as_str) {
+            assert_eq!(
+                c["formatted_body"].as_str().unwrap(),
+                h,
+                "case {} html",
+                idx
+            );
+        }
+        if let Some(list) = exp.get("html_all").and_then(Value::as_array) {
+            let html = c["formatted_body"].as_str().unwrap_or("");
+            for v in list {
+                assert!(
+                    html.contains(v.as_str().unwrap()),
+                    "case {} missing {} in {}",
+                    idx,
+                    v,
+                    html
+                );
+            }
+        }
+        if let Some(u) = exp.get("url").and_then(Value::as_str) {
+            assert_eq!(c["url"], u, "case {} url", idx);
+        }
+        if let Some(w) = exp.get("w").and_then(Value::as_i64) {
+            assert_eq!(c["info"]["w"], w, "case {} width", idx);
+        }
+        if let Some(d) = exp.get("duration").and_then(Value::as_i64) {
+            assert_eq!(c["info"]["duration"], d, "case {} duration", idx);
+        }
+        if let Some(r) = exp.get("reply").and_then(Value::as_str) {
+            assert_eq!(
+                c["m.relates_to"]["m.in_reply_to"]["event_id"], r,
+                "case {} reply",
+                idx
+            );
+        }
+    }
+}
+
+/// End-to-end: a Matrix formatted_body containing all decoration tags must
+/// arrive over the WebSocket as valid Satori elements.
+#[tokio::test]
+async fn sync_all_elements_arrive_over_ws_as_satori() {
+    let formatted = "hi <a href=\"https://matrix.to/#/@u:s\">Bob</a> \
+<b>bold</b> <i>it</i> <u>ul</u> <del>del</del> <code>c</code> \
+<span data-mx-spoiler>secret</span>";
+    let msg_event = json!({
+        "type": "m.room.message",
+        "event_id": "$all1",
+        "sender": "@alice:example.com",
+        "origin_server_ts": 1700000000000i64,
+        "content": {
+            "msgtype": "m.text", "body": "hi Bob bold it ul del c secret",
+            "format": "org.matrix.custom.html", "formatted_body": formatted
+        }
+    });
+    let mock = Arc::new(MockState {
+        syncs: vec![
+            json!({"next_batch": "s1", "rooms": {"join": {"!room:example.com": {
+                "timeline": {"events": [msg_event]}
+            }}}}),
+            json!({"next_batch": "s2", "rooms": {"join": {}}}),
+        ],
+        ..Default::default()
+    });
+
+    let mock_listener = free_listener().await;
+    let mock_port = mock_listener.local_addr().unwrap().port();
+    let mrouter = mock_router(mock.clone()).await;
+    tokio::spawn(async move { axum::serve(mock_listener, mrouter).await.unwrap() });
+
+    let satori_listener = free_listener().await;
+    let satori_port = satori_listener.local_addr().unwrap().port();
+    let cfg = test_config(
+        format!("http://127.0.0.1:{}", mock_port),
+        format!("127.0.0.1:{}", satori_port),
+    );
+    let (bridge, _cfg) = init_bridge(cfg).await.unwrap();
+    let router = build_router(bridge.clone(), "");
+    tokio::spawn(async move { axum::serve(satori_listener, router).await.unwrap() });
+    tokio::spawn(async move { bridge.run_sync().await });
+
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+    let uri = format!("ws://127.0.0.1:{}/v1/events", satori_port);
+    let mut req = IntoClientRequest::into_client_request(&uri).unwrap();
+    req.headers_mut()
+        .insert("Authorization", "Bearer satori-secret".parse().unwrap());
+    let (mut ws, _resp) = tokio_tungstenite::connect_async(req).await.unwrap();
+
+    use futures::{SinkExt, StreamExt};
+    use tokio_tungstenite::tungstenite::Message;
+
+    ws.send(Message::Text(
+        json!({"op": 3, "body": {"token": "satori-secret", "sn": 0}}).to_string(),
+    ))
+    .await
+    .unwrap();
+
+    let mut content = String::new();
+    for _ in 0..60 {
+        let msg = tokio::time::timeout(std::time::Duration::from_millis(300), ws.next())
+            .await
+            .ok()
+            .flatten();
+        let Some(Ok(Message::Text(text))) = msg else {
+            continue;
+        };
+        let v: Value = serde_json::from_str(&text).unwrap();
+        if v["op"] == 0
+            && v["body"]["type"] == "message-created"
+            && v["body"]["message"]["id"] == "$all1"
+        {
+            content = v["body"]["message"]["content"]
+                .as_str()
+                .unwrap_or("")
+                .to_string();
+            break;
+        }
+    }
+    assert!(!content.is_empty(), "never received message $all1 over WS");
+    for el in [
+        r#"<at id="@u:s" name="Bob"/>"#,
+        "<b>bold</b>",
+        "<i>it</i>",
+        "<u>ul</u>",
+        "<del>del</del>",
+        "<code>c</code>",
+        "<spl>secret</spl>",
+    ] {
+        assert!(
+            content.contains(el),
+            "Satori content missing `{}`: {}",
+            el,
+            content
+        );
+    }
+}

@@ -365,6 +365,81 @@ fn text_of(nodes: &[Node]) -> String {
     s
 }
 
+/// Render a single node (and its subtree) as `(plain, html)` for inline
+/// decoration elements. `satori_to_matrix` uses this for elements that wrap
+/// their children (bold / italic / spoiler / code / link / message / ...), so
+/// nested decorations and mentions keep their HTML semantics instead of being
+/// flattened to bare text.
+fn render_node_inline(node: &Node) -> (String, String) {
+    match node {
+        Node::Text(t) => (t.clone(), html_escape_text(t)),
+        Node::Element(el) => {
+            // Leaf elements whose data lives entirely in attributes.
+            match el.tag.as_str() {
+                "at" | "sharp" => {
+                    let id = el.attrs.get("id").cloned().unwrap_or_default();
+                    let name = el.attrs.get("name").cloned().unwrap_or_else(|| id.clone());
+                    let href = format!("https://matrix.to/#/{}", html_escape_attr(&id));
+                    return (
+                        name.clone(),
+                        format!("<a href=\"{}\">{}</a>", href, html_escape_text(&name)),
+                    );
+                }
+                "emoji" => {
+                    let name = el
+                        .attrs
+                        .get("name")
+                        .or_else(|| el.attrs.get("id"))
+                        .cloned()
+                        .unwrap_or_default();
+                    return (name.clone(), html_escape_text(&name));
+                }
+                "br" => return ("\n".into(), "<br/>".into()),
+                _ => {}
+            }
+
+            // Recurse into children first, then wrap with this element's tag.
+            let mut child_plain = String::new();
+            let mut child_html = String::new();
+            for child in &el.children {
+                let (p, h) = render_node_inline(child);
+                child_plain.push_str(&p);
+                child_html.push_str(&h);
+            }
+
+            let wrapped: (Option<String>, Option<String>) = match el.tag.as_str() {
+                "b" | "strong" => (Some("b".into()), Some("b".into())),
+                "i" | "em" => (Some("i".into()), Some("i".into())),
+                "u" | "ins" => (Some("u".into()), Some("u".into())),
+                "s" | "del" => (Some("del".into()), Some("del".into())),
+                "spl" => (Some("span data-mx-spoiler".into()), Some("span".into())),
+                "code" => (Some("code".into()), Some("code".into())),
+                "sup" => (Some("sup".into()), Some("sup".into())),
+                "sub" => (Some("sub".into()), Some("sub".into())),
+                "a" => {
+                    let href = el.attrs.get("href").cloned().unwrap_or_default();
+                    if href.is_empty() {
+                        (None, None)
+                    } else {
+                        (
+                            Some(format!("a href=\"{}\"", html_escape_attr(&href))),
+                            Some("a".into()),
+                        )
+                    }
+                }
+                _ => (None, None),
+            };
+
+            match wrapped {
+                (Some(open), Some(close)) => {
+                    (child_plain, format!("<{}>{}</{}>", open, child_html, close))
+                }
+                _ => (child_plain, child_html),
+            }
+        }
+    }
+}
+
 /// Convert a Satori element string into a Matrix `m.room.message` content object.
 pub fn satori_to_matrix(content: &str, homeserver: &str) -> Value {
     let nodes = parse(content);
@@ -448,9 +523,12 @@ pub fn satori_to_matrix(content: &str, homeserver: &str) -> Value {
                     html.push_str("<br/>");
                 }
                 _ => {
-                    let inner = text_of(&el.children);
-                    plain.push_str(&inner);
-                    html.push_str(&html_escape_text(&inner));
+                    // Decoration / link / layout elements wrap their children.
+                    // Recurse so nested tags (bold containing a mention, links
+                    // with href, spoilers, ...) keep their HTML semantics.
+                    let (p, h) = render_node_inline(node);
+                    plain.push_str(&p);
+                    html.push_str(&h);
                 }
             },
         }
@@ -589,6 +667,9 @@ fn html_to_satori(html: &str, homeserver: &str, self_id: &str) -> String {
     let mut i = 0;
     // When set: we are inside a matrix.to link; collect its label here.
     let mut at_link: Option<String> = None;
+    // Matrix spoilers are `<span data-mx-spoiler>...</span>`; track whether
+    // each open <span> is a spoiler so the matching </span> becomes </spl>.
+    let mut spoiler_stack: Vec<bool> = Vec::new();
     while i < chars.len() {
         if chars[i] == '<' {
             let mut j = i + 1;
@@ -667,8 +748,15 @@ fn html_to_satori(html: &str, homeserver: &str, self_id: &str) -> String {
             } else if closing {
                 match tag {
                     "p" | "div" | "h1" | "h2" | "h3" | "blockquote" => out.push_str("<br/>"),
-                    "b" | "strong" | "i" | "em" | "u" | "s" | "del" | "code" | "pre" | "span"
-                    | "font" => {
+                    "span" => {
+                        if spoiler_stack.pop().unwrap_or(false) {
+                            out.push_str("</spl>");
+                        } else {
+                            out.push_str("</span>");
+                        }
+                    }
+                    "b" | "strong" | "i" | "em" | "u" | "s" | "del" | "code" | "pre" | "sup"
+                    | "sub" | "font" => {
                         out.push_str("</");
                         out.push_str(tag);
                         out.push('>');
@@ -677,8 +765,17 @@ fn html_to_satori(html: &str, homeserver: &str, self_id: &str) -> String {
                 }
             } else {
                 match tag {
-                    "b" | "strong" | "i" | "em" | "u" | "s" | "del" | "code" | "pre" | "span"
-                    | "font" => {
+                    "span" => {
+                        let is_spoiler = lower.contains("data-mx-spoiler");
+                        spoiler_stack.push(is_spoiler);
+                        if is_spoiler {
+                            out.push_str("<spl>");
+                        } else {
+                            out.push_str("<span>");
+                        }
+                    }
+                    "b" | "strong" | "i" | "em" | "u" | "s" | "del" | "code" | "pre" | "sup"
+                    | "sub" | "font" => {
                         out.push('<');
                         out.push_str(tag);
                         out.push('>');
@@ -918,5 +1015,265 @@ mod tests {
         let v = serde_json::json!({"msgtype": "m.image", "body": "pic.png", "url": "mxc://s/abc"});
         let s = matrix_to_satori(&v, "https://m.example.com", "@bot:s");
         assert_eq!(s, "<img src=\"https://m.example.com/_matrix/media/v3/download/s/abc\" title=\"pic.png\"/>");
+    }
+
+    // ===== 覆盖 Satori 官方全部标准元素 =====
+    // 依据 https://satori.chat/zh-CN/protocol/elements.html
+    const HS: &str = "https://m.example.com";
+
+    fn collect_tags(nodes: &[Node], out: &mut Vec<String>) {
+        for n in nodes {
+            if let Node::Element(el) = n {
+                out.push(el.tag.clone());
+                collect_tags(&el.children, out);
+            }
+        }
+    }
+
+    fn find_el<'a>(nodes: &'a [Node], tag: &str) -> Option<&'a Element> {
+        for n in nodes {
+            if let Node::Element(el) = n {
+                if el.tag == tag {
+                    return Some(el);
+                }
+                if let Some(f) = find_el(&el.children, tag) {
+                    return Some(f);
+                }
+            }
+        }
+        None
+    }
+
+    #[test]
+    fn parse_all_standard_element_tags() {
+        let src = r#"<at id="@u:s" name="Bob" role="mod" type="all"/>
+<sharp id="!c:s" name="general"/>
+<emoji id="👍" name="thumbsup"/>
+<a href="https://example.com">link</a>
+<img src="mxc://s/i" width="100" height="50" title="pic"/>
+<audio src="mxc://s/a" duration="12" poster="mxc://s/cover"/>
+<video src="mxc://s/v" width="640" height="480" duration="30" poster="mxc://s/cover"/>
+<file src="mxc://s/f" title="doc.pdf" poster="mxc://s/thumb"/>
+<b>b</b><strong>bs</strong><i>i</i><em>im</em><u>u</u><ins>ins</ins>
+<s>s</s><del>del</del><spl>spl</spl><code>code</code><sup>sup</sup><sub>sub</sub>
+<br/><p>para</p>
+<message id="$m1"><author id="@a:s" name="Alice" avatar="mxc://s/av"/>hello</message>
+<quote id="$q1">quoted</quote>
+<button id="btn1" type="action" href="https://x" text="fill" theme="primary">press</button>"#;
+        let nodes = parse(src);
+        let mut tags = Vec::new();
+        collect_tags(&nodes, &mut tags);
+        for t in [
+            "at", "sharp", "emoji", "a", "img", "audio", "video", "file", "b", "strong", "i", "em",
+            "u", "ins", "s", "del", "spl", "code", "sup", "sub", "br", "p", "message", "author",
+            "quote", "button",
+        ] {
+            assert!(tags.iter().any(|x| x == t), "missing parsed tag: {}", t);
+        }
+    }
+
+    #[test]
+    fn parse_attributes_of_every_element() {
+        let nodes = parse(
+            r#"<at id="@u:s" name="Bob" role="mod" type="all"/>
+<button id="btn1" type="action" href="https://x" text="fill" theme="primary">press</button>
+<video src="mxc://s/v" width="640" height="480" duration="30" poster="mxc://s/cover"/>"#,
+        );
+        let at = find_el(&nodes, "at").unwrap();
+        assert_eq!(at.attrs["id"], "@u:s");
+        assert_eq!(at.attrs["name"], "Bob");
+        assert_eq!(at.attrs["role"], "mod");
+        assert_eq!(at.attrs["type"], "all");
+        let btn = find_el(&nodes, "button").unwrap();
+        assert_eq!(btn.attrs["id"], "btn1");
+        assert_eq!(btn.attrs["type"], "action");
+        assert_eq!(btn.attrs["href"], "https://x");
+        assert_eq!(btn.attrs["text"], "fill");
+        assert_eq!(btn.attrs["theme"], "primary");
+        let vid = find_el(&nodes, "video").unwrap();
+        assert_eq!(vid.attrs["width"], "640");
+        assert_eq!(vid.attrs["height"], "480");
+        assert_eq!(vid.attrs["duration"], "30");
+        assert_eq!(vid.attrs["poster"], "mxc://s/cover");
+    }
+
+    #[test]
+    fn roundtrip_all_standard_elements() {
+        let src = r#"<at id="@u:s"/><sharp id="!c:s"/><emoji name="🎉"/><a href="https://e.com">x</a><img src="mxc://s/i" width="10"/><audio src="mxc://s/a" duration="3"/><video src="mxc://s/v"/><file src="mxc://s/f"/><b>b</b><i>i</i><u>u</u><s>d</s><spl>p</spl><code>c</code><sup>s</sup><sub>b</sub><br/><p>para</p><quote id="$q">q</quote><button id="btn">press</button>"#;
+        let nodes = parse(src);
+        let out = to_string(&nodes);
+        assert_eq!(parse(&out), nodes, "roundtrip changed tree: {}", out);
+    }
+
+    #[test]
+    fn element_at_sharp_emoji_link() {
+        let v = satori_to_matrix(
+            r#"hi <at id="@u:s" name="Bob"/> <sharp id="!c:s" name="general"/> <emoji name="🎉"/> <a href="https://example.com">site</a>"#,
+            HS,
+        );
+        assert_eq!(v["msgtype"], "m.text");
+        let body = v["body"].as_str().unwrap();
+        for s in ["Bob", "general", "🎉", "site"] {
+            assert!(body.contains(s), "body missing {}: {}", s, body);
+        }
+        let html = v["formatted_body"].as_str().unwrap();
+        assert!(
+            html.contains(r#"<a href="https://matrix.to/#/@u:s">Bob</a>"#),
+            "at link: {}",
+            html
+        );
+        assert!(
+            html.contains(r#"<a href="https://matrix.to/#/!c:s">general</a>"#),
+            "sharp link: {}",
+            html
+        );
+        assert!(
+            html.contains(r#"<a href="https://example.com">site</a>"#),
+            "a href lost: {}",
+            html
+        );
+    }
+
+    #[test]
+    fn element_resources_carry_info() {
+        let img = satori_to_matrix(
+            r#"<img src="mxc://s/i" width="100" height="50" title="pic"/>"#,
+            HS,
+        );
+        assert_eq!(img["msgtype"], "m.image");
+        assert_eq!(img["url"], "mxc://s/i");
+        assert_eq!(img["info"]["w"], 100);
+        assert_eq!(img["info"]["h"], 50);
+
+        let aud = satori_to_matrix(r#"<audio src="mxc://s/a" duration="12"/>"#, HS);
+        assert_eq!(aud["msgtype"], "m.audio");
+        assert_eq!(aud["url"], "mxc://s/a");
+        assert_eq!(aud["info"]["duration"], 12);
+
+        let vid = satori_to_matrix(
+            r#"<video src="mxc://s/v" width="640" height="480" duration="30"/>"#,
+            HS,
+        );
+        assert_eq!(vid["msgtype"], "m.video");
+        assert_eq!(vid["url"], "mxc://s/v");
+        assert_eq!(vid["info"]["w"], 640);
+        assert_eq!(vid["info"]["h"], 480);
+        assert_eq!(vid["info"]["duration"], 30);
+
+        let file = satori_to_matrix(r#"<file src="mxc://s/f" title="doc.pdf"/>"#, HS);
+        assert_eq!(file["msgtype"], "m.file");
+        assert_eq!(file["url"], "mxc://s/f");
+        assert_eq!(file["body"], "doc.pdf");
+    }
+
+    #[test]
+    fn element_decorations_preserve_html() {
+        let cases = [
+            (r#"<b>bold</b>"#, "<b>bold</b>"),
+            (r#"<strong>bold</strong>"#, "<b>bold</b>"),
+            (r#"<i>it</i>"#, "<i>it</i>"),
+            (r#"<em>it</em>"#, "<i>it</i>"),
+            (r#"<u>ul</u>"#, "<u>ul</u>"),
+            (r#"<ins>ul</ins>"#, "<u>ul</u>"),
+            (r#"<s>del</s>"#, "<del>del</del>"),
+            (r#"<del>del</del>"#, "<del>del</del>"),
+            (r#"<code>code</code>"#, "<code>code</code>"),
+            (r#"<sup>sup</sup>"#, "<sup>sup</sup>"),
+            (r#"<sub>sub</sub>"#, "<sub>sub</sub>"),
+            (
+                r#"<spl>secret</spl>"#,
+                r#"<span data-mx-spoiler>secret</span>"#,
+            ),
+        ];
+        for (src, expected_html) in cases {
+            let v = satori_to_matrix(src, HS);
+            assert_eq!(
+                v["formatted_body"].as_str().unwrap(),
+                expected_html,
+                "src={}",
+                src
+            );
+        }
+        // 嵌套修饰：标签必须成对保留
+        let nested = satori_to_matrix("<b>bold <i>and italic</i></b>", HS);
+        assert_eq!(
+            nested["formatted_body"].as_str().unwrap(),
+            "<b>bold <i>and italic</i></b>"
+        );
+    }
+
+    #[test]
+    fn element_layout_and_meta() {
+        let v = satori_to_matrix("a<br/>b<p>c</p>", HS);
+        let body = v["body"].as_str().unwrap();
+        let html = v["formatted_body"].as_str().unwrap();
+        assert!(body.contains('\n'), "br -> newline: {}", body);
+        assert!(html.contains("<br/>"), "br -> html: {}", html);
+
+        let q = satori_to_matrix(r#"<quote id="$e1">quoted text</quote>"#, HS);
+        assert_eq!(q["m.relates_to"]["m.in_reply_to"]["event_id"], "$e1");
+        assert!(q["body"].as_str().unwrap().contains("quoted text"));
+
+        // message/author/button 在 Matrix 无直接对应，须优雅降级为文本内容
+        let m = satori_to_matrix(
+            r#"<message id="$m"><author id="@a:s" name="Alice"/>hello</message>"#,
+            HS,
+        );
+        assert!(m["body"].as_str().unwrap().contains("hello"));
+        let b = satori_to_matrix(r#"<button id="btn" type="action">press</button>"#, HS);
+        assert!(b["body"].as_str().unwrap().contains("press"));
+    }
+
+    #[test]
+    fn matrix_html_to_all_satori_decorations() {
+        let doc = |formatted: &str| {
+            serde_json::json!({
+                "msgtype": "m.text", "body": "x",
+                "format": "org.matrix.custom.html", "formatted_body": formatted
+            })
+        };
+        let cases = [
+            ("<b>bold</b>", "<b>bold</b>"),
+            ("<strong>bold</strong>", "<strong>bold</strong>"),
+            ("<i>it</i>", "<i>it</i>"),
+            ("<u>ul</u>", "<u>ul</u>"),
+            ("<del>del</del>", "<del>del</del>"),
+            ("<code>code</code>", "<code>code</code>"),
+            (
+                "<a href=\"https://example.com\">site</a>",
+                "<a href=\"https://example.com\">site</a>",
+            ),
+        ];
+        for (html, expected) in cases {
+            assert_eq!(
+                matrix_to_satori(&doc(html), HS, "@bot:s"),
+                expected,
+                "html={}",
+                html
+            );
+        }
+        // Matrix 剧透 -> Satori spl
+        let spoiler = matrix_to_satori(&doc("<span data-mx-spoiler>secret</span>"), HS, "@bot:s");
+        assert!(
+            spoiler.contains("secret") && spoiler.contains("spl"),
+            "spoiler: {}",
+            spoiler
+        );
+    }
+
+    #[test]
+    fn matrix_native_msgs_to_elements() {
+        let emote = serde_json::json!({"msgtype": "m.emote", "body": "waves"});
+        assert_eq!(matrix_to_satori(&emote, HS, "@bot:s"), "* waves");
+        let notice = serde_json::json!({"msgtype": "m.notice", "body": "heads up"});
+        assert_eq!(matrix_to_satori(&notice, HS, "@bot:s"), "heads up");
+        let video =
+            serde_json::json!({"msgtype": "m.video", "body": "clip.mp4", "url": "mxc://s/v"});
+        let s = matrix_to_satori(&video, HS, "@bot:s");
+        assert!(s.starts_with("<video src="), "{}", s);
+        assert!(s.contains("clip.mp4"), "{}", s);
+        let file = serde_json::json!({"msgtype": "m.file", "body": "doc.pdf", "url": "mxc://s/f"});
+        let s = matrix_to_satori(&file, HS, "@bot:s");
+        assert!(s.starts_with("<file src="), "{}", s);
     }
 }
