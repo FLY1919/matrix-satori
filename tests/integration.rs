@@ -23,6 +23,8 @@ struct MockState {
     sync_index: AtomicUsize,
     sent: Mutex<Vec<Value>>,
     redacted: Mutex<Vec<String>>,
+    /// (device_id, display_name) pairs from PUT /devices/{id}
+    device_names: Mutex<Vec<(String, String)>>,
 }
 
 async fn whoami() -> Json<Value> {
@@ -92,9 +94,24 @@ async fn upload_media() -> Json<Value> {
     Json(json!({"content_uri": "mxc://example.com/UPLOAD1"}))
 }
 
+async fn set_device_name(
+    State(state): State<Arc<MockState>>,
+    axum::extract::Path(device_id): axum::extract::Path<String>,
+    Json(body): Json<Value>,
+) -> Json<Value> {
+    let name = body
+        .get("display_name")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    state.device_names.lock().await.push((device_id, name));
+    Json(json!({}))
+}
+
 async fn mock_router(state: Arc<MockState>) -> Router {
     Router::new()
         .route("/_matrix/client/v3/account/whoami", get(whoami))
+        .route("/_matrix/client/v3/devices/:device", put(set_device_name))
         .route("/_matrix/client/v3/sync", get(sync))
         .route(
             "/_matrix/client/v3/rooms/:room/send/m.room.message/:txn",
@@ -382,7 +399,8 @@ async fn http_unauthorized_without_token() {
         .unwrap();
     assert_eq!(resp.status(), 200);
     let v: Value = resp.json().await.unwrap();
-    assert_eq!(v["adapter"], "matrix");
+    assert_eq!(v["adapter"], "satori");
+    assert_eq!(v["platform"], "matrix");
 }
 
 async fn spawn_server<F>(mock: Arc<MockState>, build: F) -> (u16, u16)
@@ -791,4 +809,104 @@ async fn sync_all_elements_arrive_over_ws_as_satori() {
             content
         );
     }
+}
+
+#[tokio::test]
+async fn device_display_name_is_applied_via_api() {
+    let mock = Arc::new(MockState::default());
+    let mock_listener = free_listener().await;
+    let mock_port = mock_listener.local_addr().unwrap().port();
+    let mrouter = mock_router(mock.clone()).await;
+    tokio::spawn(async move { axum::serve(mock_listener, mrouter).await.unwrap() });
+
+    let mut cfg = test_config(
+        format!("http://127.0.0.1:{}", mock_port),
+        "127.0.0.1:0".into(),
+    );
+    cfg.device_display_name = "my-satori-bot".into();
+    matrix_satori::apply_device_display_name(&cfg, Some("DEV123")).await;
+
+    let names = mock.device_names.lock().await;
+    assert_eq!(names.len(), 1, "expected exactly one PUT /devices call");
+    assert_eq!(names[0].0, "DEV123");
+    assert_eq!(names[0].1, "my-satori-bot");
+}
+
+#[tokio::test]
+async fn device_display_name_skipped_without_device_or_when_empty() {
+    let mock = Arc::new(MockState::default());
+    let mock_listener = free_listener().await;
+    let mock_port = mock_listener.local_addr().unwrap().port();
+    let mrouter = mock_router(mock.clone()).await;
+    tokio::spawn(async move { axum::serve(mock_listener, mrouter).await.unwrap() });
+
+    let mut cfg = test_config(
+        format!("http://127.0.0.1:{}", mock_port),
+        "127.0.0.1:0".into(),
+    );
+    // No device id -> skipped.
+    matrix_satori::apply_device_display_name(&cfg, None).await;
+    // Empty display name -> skipped.
+    cfg.device_display_name.clear();
+    matrix_satori::apply_device_display_name(&cfg, Some("DEV123")).await;
+
+    assert!(
+        mock.device_names.lock().await.is_empty(),
+        "no PUT /devices call expected"
+    );
+}
+
+#[tokio::test]
+async fn ws_sends_ready_only_after_identify() {
+    let mock = Arc::new(MockState {
+        syncs: vec![json!({"next_batch": "s1", "rooms": {"join": {}}})],
+        ..Default::default()
+    });
+    let (mock_port, satori_port) = spawn_server(mock, |bridge, _| build_router(bridge, "")).await;
+    let _ = mock_port;
+    tokio::spawn(async move {});
+
+    use futures::{SinkExt, StreamExt};
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+    use tokio_tungstenite::tungstenite::Message;
+
+    let uri = format!("ws://127.0.0.1:{}/v1/events", satori_port);
+    let mut req = IntoClientRequest::into_client_request(&uri).unwrap();
+    req.headers_mut()
+        .insert("Authorization", "Bearer satori-secret".parse().unwrap());
+    let (mut ws, _resp) = tokio_tungstenite::connect_async(req).await.unwrap();
+
+    // Before IDENTIFY the server must NOT send READY (op=4).
+    let early = tokio::time::timeout(std::time::Duration::from_millis(300), ws.next()).await;
+    if let Ok(Some(Ok(Message::Text(text)))) = early {
+        let v: Value = serde_json::from_str(&text).unwrap();
+        assert_ne!(
+            v["op"].as_u64(),
+            Some(4),
+            "READY must not be sent before IDENTIFY: {}",
+            text
+        );
+    }
+
+    // After IDENTIFY, READY must arrive.
+    ws.send(Message::Text(
+        json!({"op": 3, "body": {"token": "satori-secret", "sn": 0}}).to_string(),
+    ))
+    .await
+    .unwrap();
+    let mut got_ready = false;
+    for _ in 0..20 {
+        if let Ok(Some(Ok(Message::Text(text)))) =
+            tokio::time::timeout(std::time::Duration::from_millis(300), ws.next()).await
+        {
+            let v: Value = serde_json::from_str(&text).unwrap();
+            if v["op"].as_u64() == Some(4) {
+                assert_eq!(v["body"]["logins"][0]["adapter"], "satori");
+                assert_eq!(v["body"]["logins"][0]["platform"], "matrix");
+                got_ready = true;
+                break;
+            }
+        }
+    }
+    assert!(got_ready, "READY not received after IDENTIFY");
 }

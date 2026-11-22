@@ -57,6 +57,8 @@ Koishi (adapter-satori)  ──WebSocket/HTTP──▶  matrix-satori  ──Mat
 
 **重要：设备独占**。这个桥接程序会用凭据里的 device_id 恢复会话并上传自己的 one-time keys，因此**该 device 必须专供本程序使用，不要同时在你手机/网页端登录同一个 device**——否则两端会抢密钥（表现为 `One time key ... already exists` 或 `SigningKeyChanged`）。需要手机同时在线就用另一个账号，或给桥接单独建一个 device 登录。state_dir（含 crypto-store 和 credentials.json）要固定并持久化，别每次换目录。
 
+**设备名**：Element 等设备列表里显示的"Unknown device"是设备的 `display_name`，和 `device_id`（登录标识）是两回事。程序启动后会用 `--device-display-name`（默认 `satori`）通过官方 `PUT /devices/{deviceId}` 给当前设备改名，这样设备列表里就是一个固定可辨的名字。改名只是显示名，**不等于设备验证/cross-sign 信任**——加密Rooms 能否解密仍取决于设备是否被信任或有密钥备份。若登录方式没有 device_id（access-token / appservice），自动跳过。
+
 **限制**：
 - **历史消息**：Matrix 密钥与设备绑定，本设备创建**之前**发送的加密消息无法解密（需要 cross-signing / 密钥备份恢复，未实现）。从本次登录起、对方重新分发的消息可解。
 - 未做跨设备验证（cross-signing / emoji 验证），默认接受未验证设备的消息（能解密，但不做信任校验）。
@@ -281,6 +283,7 @@ sync_timeout = 30000
 | `--password` | `MATRIX_PASSWORD` | 空 | 密码登录密码 |
 | `--login-token` | `MATRIX_LOGIN_TOKEN` | 空 | SSO 回调的 loginToken |
 | `--device-id` | `MATRIX_DEVICE_ID` | 空 | 登录设备 ID（可选） |
+| `--device-display-name` | `MATRIX_DEVICE_DISPLAY_NAME` | `satori` | 设备显示名（Element 设备列表里显示的名字；设空则跳过） |
 | `--user-id` | `MATRIX_USER_ID` | 自动探测 | bot 的 Matrix ID |
 | `--as-token` | `MATRIX_AS_TOKEN` | 空 | appservice token |
 | `--sso-callback-bind` | `MATRIX_SSO_CALLBACK_BIND` | `127.0.0.1:8088` | SSO 本地回调监听 |

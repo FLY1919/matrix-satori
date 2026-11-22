@@ -52,6 +52,11 @@ pub struct Config {
     #[arg(long, env = "MATRIX_DEVICE_ID", default_value = "")]
     pub device_id: String,
 
+    /// Human-readable device name shown in Element's device list. Applied via
+    /// `PUT /_matrix/client/v3/devices/{deviceId}` after login. Set empty to skip.
+    #[arg(long, env = "MATRIX_DEVICE_DISPLAY_NAME", default_value = "satori")]
+    pub device_display_name: String,
+
     /// Bot's Matrix user ID, e.g. @bot:example.com (auto-detected if empty).
     #[arg(long, env = "MATRIX_USER_ID", default_value = "")]
     pub user_id: String,
@@ -123,6 +128,8 @@ pub struct CliOverrides {
     pub login_token: Option<String>,
     #[arg(long, env = "MATRIX_DEVICE_ID")]
     pub device_id: Option<String>,
+    #[arg(long, env = "MATRIX_DEVICE_DISPLAY_NAME")]
+    pub device_display_name: Option<String>,
     #[arg(long, env = "MATRIX_USER_ID")]
     pub user_id: Option<String>,
     #[arg(long, env = "MATRIX_AS_TOKEN")]
@@ -159,6 +166,7 @@ impl Config {
             password: String::new(),
             login_token: String::new(),
             device_id: String::new(),
+            device_display_name: "satori".into(),
             user_id: String::new(),
             as_token: String::new(),
             sso_callback_bind: "127.0.0.1:8088".into(),
@@ -225,6 +233,7 @@ impl Config {
         apply!(password);
         apply!(login_token);
         apply!(device_id);
+        apply!(device_display_name);
         apply!(user_id);
         apply!(as_token);
         apply!(sso_callback_bind);

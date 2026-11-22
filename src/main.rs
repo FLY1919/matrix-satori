@@ -1,6 +1,8 @@
 #![recursion_limit = "256"]
 
-use matrix_satori::{build_router, config::Config, init_bridge, resolve_config};
+use matrix_satori::{
+    apply_device_display_name, build_router, config::Config, init_bridge, resolve_config,
+};
 use tracing::info;
 
 #[tokio::main]
@@ -13,6 +15,9 @@ async fn main() -> anyhow::Result<()> {
 
     info!("starting matrix-satori (homeserver={})", config.homeserver);
     let (config, creds) = resolve_config(config).await?;
+    // Make the bot's device show a stable name in Element instead of
+    // "Unknown device" (best-effort; skipped when there is no device id).
+    apply_device_display_name(&config, creds.device_id.as_deref()).await;
     let (bridge, cfg) = init_bridge(config).await?;
     info!("authenticated as {}", bridge.self_id);
 

@@ -47,15 +47,10 @@ async fn handle_socket(socket: WebSocket, bridge: Arc<Bridge>) {
     let (mut sender, mut receiver) = socket.split();
     let mut events = bridge.subscribe();
 
-    // handshake: send READY immediately (adapter tolerates READY before/after IDENTIFY)
-    let ready = Payload::new(
-        Opcode::Ready,
-        json!({ "logins": [bridge.login], "proxy_urls": [] }),
-    );
-    if let Ok(text) = serde_json::to_string(&ready) {
-        let _ = sender.send(WsMessage::Text(text)).await;
-    }
-
+    // Handshake follows the official @satorijs/adapter-satori flow exactly:
+    // the client sends IDENTIFY (op=3) first, and only then do we reply with
+    // READY (op=4). We do NOT push READY eagerly on connect — some adapter
+    // versions ignore an out-of-order READY and never create the bot.
     loop {
         tokio::select! {
             event = events.recv() => {
@@ -92,7 +87,7 @@ async fn handle_socket(socket: WebSocket, bridge: Arc<Bridge>) {
                                     }
                                     x if x == Opcode::Identify as u64 => {
                                         debug!("IDENTIFY from client: {}", text);
-                                        // Re-send READY with current logins.
+                                        // Reply with READY carrying the current logins.
                                         let ready = Payload::new(
                                             Opcode::Ready,
                                             json!({ "logins": [bridge.login], "proxy_urls": [] }),

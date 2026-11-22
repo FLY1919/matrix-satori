@@ -540,6 +540,24 @@ impl MatrixClient {
         Ok(())
     }
 
+    /// PUT /_matrix/client/v3/devices/{deviceId}
+    /// Set the human-readable device name shown in client device lists
+    /// (e.g. Element). Without this, the device appears as "Unknown device".
+    pub async fn set_device_display_name(&self, device_id: &str, name: &str) -> Result<()> {
+        self.request(
+            self.http
+                .put(format!(
+                    "{}/_matrix/client/v3/devices/{}",
+                    self.base(),
+                    urlencoding(device_id)
+                ))
+                .bearer_auth(&self.config.access_token)
+                .json(&json!({"display_name": name})),
+        )
+        .await?;
+        Ok(())
+    }
+
     pub fn config(&self) -> &Config {
         &self.config
     }

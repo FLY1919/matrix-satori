@@ -207,7 +207,7 @@ mod tests {
     fn login_serializes_snake_case() {
         let login = Login {
             sn: 1,
-            adapter: "matrix".into(),
+            adapter: "satori".into(),
             user: Some(User {
                 id: "@bot:s".into(),
                 ..Default::default()
@@ -218,7 +218,7 @@ mod tests {
             features: vec!["message.create".into()],
         };
         let v = serde_json::to_value(&login).unwrap();
-        assert_eq!(v["adapter"], "matrix");
+        assert_eq!(v["adapter"], "satori");
         assert_eq!(v["platform"], "matrix");
         assert_eq!(v["user"]["id"], "@bot:s");
         assert!(v.get("self_id").is_none());

@@ -89,7 +89,7 @@ impl Bridge {
         };
         let login = Login {
             sn: 1,
-            adapter: "matrix".into(),
+            adapter: "satori".into(),
             user: Some(User {
                 id: self_id.clone(),
                 name,

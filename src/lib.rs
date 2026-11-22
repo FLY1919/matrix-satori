@@ -133,6 +133,35 @@ pub async fn resolve_config(mut config: Config) -> anyhow::Result<(Config, Crede
     Ok((config, creds))
 }
 
+/// Apply the human-readable device name (Element shows "Unknown device"
+/// otherwise). Best-effort: a failure here never blocks startup. Only works
+/// when the login flow produced a device-bound access token (i.e. a device id
+/// exists); appservice/token logins without a device simply skip this.
+pub async fn apply_device_display_name(config: &Config, device_id: Option<&str>) {
+    if config.device_display_name.is_empty() {
+        return;
+    }
+    let Some(device_id) = device_id.filter(|d| !d.is_empty()) else {
+        tracing::debug!("no device id in credentials; skipping device display name");
+        return;
+    };
+    match matrix::MatrixClient::new(std::sync::Arc::new(config.clone())) {
+        Ok(client) => {
+            match client
+                .set_device_display_name(device_id, &config.device_display_name)
+                .await
+            {
+                Ok(()) => info!(
+                    "set device display name to '{}' for device {}",
+                    config.device_display_name, device_id
+                ),
+                Err(e) => tracing::warn!("could not set device display name: {}", e),
+            }
+        }
+        Err(e) => tracing::warn!("could not build client for device display name: {}", e),
+    }
+}
+
 pub async fn init_bridge(config: Config) -> anyhow::Result<(Arc<Bridge>, Arc<Config>)> {
     let config = Arc::new(config);
     let matrix = MatrixClient::new(config.clone())?;
