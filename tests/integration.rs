@@ -25,6 +25,10 @@ struct MockState {
     redacted: Mutex<Vec<String>>,
     /// (device_id, display_name) pairs from PUT /devices/{id}
     device_names: Mutex<Vec<(String, String)>>,
+    /// number of media upload calls (remote media auto-upload test)
+    upload_count: AtomicUsize,
+    /// number of times the remote picture endpoint was fetched
+    remote_count: AtomicUsize,
 }
 
 async fn whoami() -> Json<Value> {
@@ -90,8 +94,22 @@ async fn empty_post() -> Json<Value> {
     Json(json!({}))
 }
 
-async fn upload_media() -> Json<Value> {
+async fn upload_media(State(state): State<Arc<MockState>>) -> Json<Value> {
+    state.upload_count.fetch_add(1, Ordering::SeqCst);
     Json(json!({"content_uri": "mxc://example.com/UPLOAD1"}))
+}
+
+/// A fake remote image for the auto-upload test (download_url fetches this).
+async fn remote_pic(State(state): State<Arc<MockState>>) -> axum::response::Response {
+    use axum::http::header;
+    use axum::response::IntoResponse;
+    state.remote_count.fetch_add(1, Ordering::SeqCst);
+    let mut resp = (b"\x89PNG\r\n\x1a\nFAKE".to_vec()).into_response();
+    resp.headers_mut().insert(
+        header::CONTENT_TYPE,
+        header::HeaderValue::from_static("image/png"),
+    );
+    resp
 }
 
 async fn set_device_name(
@@ -141,6 +159,7 @@ async fn mock_router(state: Arc<MockState>) -> Router {
             put(empty_post),
         )
         .route("/_matrix/media/v3/upload", post(upload_media))
+        .route("/remote/pic.png", get(remote_pic))
         .with_state(state)
 }
 
@@ -909,4 +928,51 @@ async fn ws_sends_ready_only_after_identify() {
         }
     }
     assert!(got_ready, "READY not received after IDENTIFY");
+}
+
+#[tokio::test]
+async fn message_create_auto_uploads_remote_image() {
+    let mock = Arc::new(MockState {
+        syncs: vec![json!({"next_batch": "s0", "rooms": {"join": {}}})],
+        ..Default::default()
+    });
+    let (mp, sp) = spawn_server(mock.clone(), |b, _| build_router(b, "")).await;
+
+    let remote = format!("http://127.0.0.1:{}/remote/pic.png", mp);
+    let content = format!(r#"<img src="{}" title="pic"/>"#, remote);
+    let client = reqwest::Client::new();
+    let url = format!("http://127.0.0.1:{}/v1/message.create", sp);
+    let resp = client
+        .post(&url)
+        .bearer_auth("satori-secret")
+        .json(&json!({"channel_id": "!room:example.com", "content": content}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 200, "body: {:?}", resp.text().await);
+
+    // The remote URL must have been fetched and re-uploaded to the homeserver.
+    assert!(
+        mock.remote_count.load(Ordering::SeqCst) >= 1,
+        "remote image was never downloaded"
+    );
+    assert!(
+        mock.upload_count.load(Ordering::SeqCst) >= 1,
+        "remote image was never uploaded to Matrix"
+    );
+
+    // And the actual /send payload must be a real m.image with the mxc URI.
+    let sent = mock.sent.lock().await;
+    let image = sent
+        .iter()
+        .find(|v| {
+            v.get("content")
+                .and_then(|c| c.get("msgtype"))
+                .and_then(|m| m.as_str())
+                == Some("m.image")
+        })
+        .expect("no m.image event was sent");
+    let img = &image["content"];
+    assert_eq!(img["url"], "mxc://example.com/UPLOAD1");
+    assert_eq!(img["body"], "pic");
 }

@@ -440,8 +440,46 @@ fn render_node_inline(node: &Node) -> (String, String) {
     }
 }
 
+/// Collect every remote (http/https) media URL found in img/audio/video/file
+/// elements. Used by the async upload pass before calling
+/// `satori_to_matrix_with_media`; mxc:// sources are already uploadable and are
+/// skipped. Order is preserved and duplicates removed so the caller uploads
+/// each distinct URL once.
+pub fn collect_remote_media_urls(content: &str) -> Vec<String> {
+    fn walk(nodes: &[Node], out: &mut Vec<String>) {
+        for node in nodes {
+            if let Node::Element(el) = node {
+                if matches!(el.tag.as_str(), "img" | "audio" | "video" | "file") {
+                    if let Some(src) = el
+                        .attrs
+                        .get("src")
+                        .or_else(|| el.attrs.get("url"))
+                        .filter(|s| s.starts_with("http://") || s.starts_with("https://"))
+                    {
+                        if !out.contains(src) {
+                            out.push(src.clone());
+                        }
+                    }
+                }
+                walk(&el.children, out);
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(&parse(content), &mut out);
+    out
+}
+
 /// Convert a Satori element string into a Matrix `m.room.message` content object.
-pub fn satori_to_matrix(content: &str, homeserver: &str) -> Value {
+///
+/// Remote media URLs that appear in `resolved` (url -> mxc://) are emitted as
+/// real media messages; anything else is kept as a plain link. The async layer
+/// downloads/uploads remote URLs first, then passes the map here.
+pub fn satori_to_matrix_with_media(
+    content: &str,
+    homeserver: &str,
+    resolved: &HashMap<String, String>,
+) -> Value {
     let nodes = parse(content);
     let mut plain = String::new();
     let mut html = String::new();
@@ -501,8 +539,12 @@ pub fn satori_to_matrix(content: &str, homeserver: &str) -> Value {
                     }
                     let mxc = if src.starts_with("mxc://") {
                         src.clone()
+                    } else if let Some(uploaded) = resolved.get(&src) {
+                        // Remote URL was downloaded and uploaded to the
+                        // homeserver by the async layer; embed the real mxc.
+                        uploaded.clone()
                     } else {
-                        // remote URL: Matrix cannot embed directly; keep as link
+                        // Not uploaded (or upload failed): keep as a link.
                         plain.push_str(&src);
                         html.push_str(&format!(
                             "<a href=\"{}\">{}</a>",
@@ -568,6 +610,13 @@ pub fn satori_to_matrix(content: &str, homeserver: &str) -> Value {
     }
     let _ = homeserver;
     content
+}
+
+/// Convenience wrapper with no pre-uploaded media. Remote media URLs stay as
+/// links. Production code should use `satori_to_matrix_with_media` after the
+/// async upload pass.
+pub fn satori_to_matrix(content: &str, homeserver: &str) -> Value {
+    satori_to_matrix_with_media(content, homeserver, &HashMap::new())
 }
 
 fn build_media_info(el: &Element) -> Option<Value> {
@@ -1275,5 +1324,45 @@ mod tests {
         let file = serde_json::json!({"msgtype": "m.file", "body": "doc.pdf", "url": "mxc://s/f"});
         let s = matrix_to_satori(&file, HS, "@bot:s");
         assert!(s.starts_with("<file src="), "{}", s);
+    }
+
+    #[test]
+    fn collect_remote_media_urls_dedups_and_skips_mxc() {
+        let src = r#"<img src="https://pighub.top/images/万猪拱塔.jpg"/><b>x<img src="https://e.com/b.png"/></b><img src="https://pighub.top/images/万猪拱塔.jpg"/><img src="mxc://s/already"/>"#;
+        let urls = collect_remote_media_urls(src);
+        assert_eq!(urls.len(), 2, "{:?}", urls);
+        assert_eq!(urls[0], "https://pighub.top/images/万猪拱塔.jpg");
+        assert_eq!(urls[1], "https://e.com/b.png");
+    }
+
+    #[test]
+    fn remote_media_resolved_becomes_real_image() {
+        let src = r#"<img src="https://pighub.top/images/万猪拱塔.jpg" title="pig"/>"#;
+        // Without the upload map it stays a link.
+        let plain = satori_to_matrix(src, HS);
+        assert_eq!(plain["msgtype"], "m.text");
+        assert!(plain["formatted_body"]
+            .as_str()
+            .unwrap()
+            .contains("pighub.top"));
+
+        // With the map it becomes a real m.image pointing at the uploaded mxc.
+        let mut resolved = HashMap::new();
+        resolved.insert(
+            "https://pighub.top/images/万猪拱塔.jpg".to_string(),
+            "mxc://s/uploaded123".to_string(),
+        );
+        let v = satori_to_matrix_with_media(src, HS, &resolved);
+        assert_eq!(v["msgtype"], "m.image");
+        assert_eq!(v["url"], "mxc://s/uploaded123");
+        assert_eq!(v["body"], "pig");
+    }
+
+    #[test]
+    fn remote_media_failed_upload_falls_back_to_link() {
+        let src = r#"<img src="https://e.com/x.png"/>"#;
+        let v = satori_to_matrix_with_media(src, HS, &HashMap::new());
+        assert_eq!(v["msgtype"], "m.text");
+        assert!(v["formatted_body"].as_str().unwrap().contains("<a href="));
     }
 }

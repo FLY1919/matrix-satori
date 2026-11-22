@@ -1,7 +1,7 @@
 //! Satori HTTP API: `POST /v1/<method>` and `GET /v1/<method>`.
 
 use crate::bridge::Bridge;
-use crate::element::satori_to_matrix;
+use crate::element::satori_to_matrix_with_media;
 use crate::satori::{Channel, Guild, Message, User};
 use axum::extract::{MatchedPath, Multipart, RawQuery, State};
 use axum::http::{header, HeaderMap, StatusCode};
@@ -107,7 +107,10 @@ async fn dispatch(bridge: &Arc<Bridge>, method: &str, a: &Value, _q: &Option<Str
             let room = s("channel_id")
                 .ok_or_else(|| (StatusCode::BAD_REQUEST, "channel_id required".to_string()))?;
             let content = s("content").unwrap_or("");
-            let mut matrix_content = satori_to_matrix(content, homeserver);
+            // Download + upload any remote media first so images/videos render
+            // as real Matrix media instead of bare links.
+            let resolved = bridge.resolve_remote_media(content).await;
+            let mut matrix_content = satori_to_matrix_with_media(content, homeserver, &resolved);
             // Satori passes the quoted message in `referrer` (an object with `message_id`).
             // Matrix expresses a reply via m.relates_to.m.in_reply_to.event_id.
             let quote_event = a
@@ -167,7 +170,8 @@ async fn dispatch(bridge: &Arc<Bridge>, method: &str, a: &Value, _q: &Option<Str
                 .ok_or_else(|| (StatusCode::BAD_REQUEST, "message_id required".to_string()))?;
             let content = s("content").unwrap_or("");
             // Matrix edits: send a replacement event with m.replace relation.
-            let new_content = satori_to_matrix(content, homeserver);
+            let resolved = bridge.resolve_remote_media(content).await;
+            let new_content = satori_to_matrix_with_media(content, homeserver, &resolved);
             let edit = json!({
                 "msgtype": new_content["msgtype"],
                 "body": format!("* {}", new_content["body"].as_str().unwrap_or("")),

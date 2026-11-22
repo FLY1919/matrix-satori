@@ -384,6 +384,31 @@ impl MatrixClient {
         })
     }
 
+    /// Download an arbitrary http(s) URL, returning (content_type, bytes).
+    /// Used to fetch remote media before uploading into Matrix storage.
+    pub async fn download_url(&self, url: &str) -> Result<(String, Vec<u8>)> {
+        let resp = self.http.get(url).send().await?;
+        let status = resp.status();
+        if !status.is_success() {
+            return Err(MatrixError::Api {
+                status: status.as_u16(),
+                body: format!("download {} failed", url),
+            });
+        }
+        let content_type = resp
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("application/octet-stream")
+            .split(';')
+            .next()
+            .unwrap_or("application/octet-stream")
+            .trim()
+            .to_string();
+        let bytes = resp.bytes().await?.to_vec();
+        Ok((content_type, bytes))
+    }
+
     /// POST /_matrix/media/v3/upload  -> mxc:// URI
     pub async fn upload_media(&self, content_type: &str, bytes: Vec<u8>) -> Result<String> {
         let v = self

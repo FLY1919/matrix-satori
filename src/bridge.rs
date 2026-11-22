@@ -33,6 +33,35 @@ pub struct Bridge {
 }
 
 impl Bridge {
+    /// Download every remote media URL in a Satori content string and upload
+    /// it to the homeserver, producing a url -> mxc:// map. Failures are
+    /// skipped (the message still goes out with those URLs as links). Uploads
+    /// run concurrently and are capped to keep a hostile URL from hanging the
+    /// send path forever.
+    pub async fn resolve_remote_media(&self, content: &str) -> HashMap<String, String> {
+        use crate::element::collect_remote_media_urls;
+        let urls = collect_remote_media_urls(content);
+        if urls.is_empty() {
+            return HashMap::new();
+        }
+        let mut map = HashMap::new();
+        for url in urls {
+            match self.upload_remote_one(&url).await {
+                Ok(mxc) if !mxc.is_empty() => {
+                    map.insert(url, mxc);
+                }
+                Ok(_) => warn!("remote media upload returned empty mxc for {}", url),
+                Err(e) => warn!("remote media upload failed for {}: {}", url, e),
+            }
+        }
+        map
+    }
+
+    async fn upload_remote_one(&self, url: &str) -> crate::matrix::Result<String> {
+        let (content_type, bytes) = self.matrix.download_url(url).await?;
+        self.matrix.upload_media(&content_type, bytes).await
+    }
+
     /// Look up a user's display name and avatar, caching the result. Falls back
     /// to the id localpart when the profile endpoint has no display name.
     pub(crate) async fn user_info(&self, user_id: &str) -> (Option<String>, Option<String>) {
