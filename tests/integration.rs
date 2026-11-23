@@ -90,6 +90,19 @@ async fn create_room() -> Json<Value> {
     Json(json!({"room_id": "!new:example.com"}))
 }
 
+/// A quoted/related event for the reply-quote integration test.
+async fn get_event(
+    axum::extract::Path((_room, event)): axum::extract::Path<(String, String)>,
+) -> Json<Value> {
+    Json(json!({
+        "type": "m.room.message",
+        "event_id": event,
+        "sender": "@alice:example.com",
+        "origin_server_ts": 1699999999000i64,
+        "content": {"msgtype": "m.text", "body": "original quoted text"}
+    }))
+}
+
 async fn empty_post() -> Json<Value> {
     Json(json!({}))
 }
@@ -141,6 +154,10 @@ async fn mock_router(state: Arc<MockState>) -> Router {
             get(room_name),
         )
         .route("/_matrix/client/v3/account_data", get(account_data))
+        .route(
+            "/_matrix/client/v3/rooms/:room/event/:event",
+            get(get_event),
+        )
         .route(
             "/_matrix/client/v1/rooms/:room/relations/:event/m.annotation/m.reaction",
             get(relations),
@@ -442,6 +459,88 @@ where
     tokio::spawn(async move { axum::serve(sl, router).await.unwrap() });
     tokio::time::sleep(std::time::Duration::from_millis(80)).await;
     (mp, sp)
+}
+
+/// A mixed Satori message (text + several media) must be sent as separate
+/// Matrix events so no part is dropped. Previously only the last media
+/// survived and the rest was silently lost.
+#[tokio::test]
+async fn message_create_splits_mixed_media_into_separate_events() {
+    let mock = Arc::new(MockState {
+        syncs: vec![json!({"next_batch": "s0", "rooms": {"join": {}}})],
+        ..Default::default()
+    });
+    let (_mp, sp) = spawn_server(mock.clone(), |b, _| build_router(b, "")).await;
+    let client = reqwest::Client::new();
+    let url = format!("http://127.0.0.1:{}/v1/message.create", sp);
+
+    let content = r#"文字开头<img src="mxc://s/a" title="A"/>中间文字<audio src="mxc://s/b"/>结尾"#;
+    let resp = client
+        .post(&url)
+        .bearer_auth("satori-secret")
+        .json(&json!({"channel_id": "!room:example.com", "content": content}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 200, "body: {:?}", resp.text().await);
+    let result: Value = resp.json().await.unwrap();
+    // One returned message id per emitted Matrix event.
+    assert!(
+        result.as_array().unwrap().len() >= 5,
+        "expected one id per segment: {:?}",
+        result
+    );
+
+    let sent = mock.sent.lock().await;
+    let mts: Vec<&str> = sent
+        .iter()
+        .map(|v| v["content"]["msgtype"].as_str().unwrap_or(""))
+        .collect();
+    assert!(
+        mts.contains(&"m.image") && mts.contains(&"m.audio") && mts.contains(&"m.text"),
+        "all message types present: {:?}",
+        mts
+    );
+    // The image and audio must be separate events, not merged into one.
+    let image = sent
+        .iter()
+        .find(|v| v["content"]["msgtype"] == "m.image")
+        .unwrap();
+    assert_eq!(image["content"]["url"], "mxc://s/a");
+    let audio = sent
+        .iter()
+        .find(|v| v["content"]["msgtype"] == "m.audio")
+        .unwrap();
+    assert_eq!(audio["content"]["url"], "mxc://s/b");
+}
+
+/// Even when a remote media download fails (anti-hotlink), the event must keep
+/// its media msgtype and original URL instead of degrading to a text link.
+#[tokio::test]
+async fn message_create_keeps_media_type_on_download_failure() {
+    let mock = Arc::new(MockState {
+        syncs: vec![json!({"next_batch": "s0", "rooms": {"join": {}}})],
+        ..Default::default()
+    });
+    let (_mp, sp) = spawn_server(mock.clone(), |b, _| build_router(b, "")).await;
+    let client = reqwest::Client::new();
+    let url = format!("http://127.0.0.1:{}/v1/message.create", sp);
+
+    let content = r#"<audio src="https://m701.music.126.net/song.mp3?vuutv=x"/>"#;
+    let resp = client
+        .post(&url)
+        .bearer_auth("satori-secret")
+        .json(&json!({"channel_id": "!room:example.com", "content": content}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 200, "body: {:?}", resp.text().await);
+
+    let sent = mock.sent.lock().await;
+    assert_eq!(sent.len(), 1);
+    let c = &sent[0]["content"];
+    assert_eq!(c["msgtype"], "m.audio", "media type kept: {:?}", c);
+    assert_eq!(c["url"], "https://m701.music.126.net/song.mp3?vuutv=x");
 }
 
 #[tokio::test]
@@ -828,6 +927,116 @@ async fn sync_all_elements_arrive_over_ws_as_satori() {
             content
         );
     }
+}
+
+/// A Matrix reply must reach Koishi as a leading `<quote>` element inside
+/// `message.content` (NOT only as a standalone `message.quote` field, which the
+/// official adapter clears when it assigns session.content). This is what
+/// makes `session.quote` readable inside plugins.
+#[tokio::test]
+async fn sync_reply_reaches_koishi_as_quote_element() {
+    let reply_event = json!({
+        "type": "m.room.message",
+        "event_id": "$reply1",
+        "sender": "@bob:example.com",
+        "origin_server_ts": 1700000001000i64,
+        "content": {
+            "msgtype": "m.text",
+            "body": "> <@alice:example.com> original quoted text\n\nmy reply",
+            "m.relates_to": {"m.in_reply_to": {"event_id": "$orig"}}
+        }
+    });
+    let mock = Arc::new(MockState {
+        syncs: vec![
+            json!({
+                "next_batch": "s1",
+                "rooms": {"join": {"!room:example.com": {
+                    "timeline": {"events": [reply_event]}
+                }}}
+            }),
+            json!({"next_batch": "s2", "rooms": {"join": {}}}),
+        ],
+        ..Default::default()
+    });
+
+    let mock_listener = free_listener().await;
+    let mock_port = mock_listener.local_addr().unwrap().port();
+    let mrouter = mock_router(mock.clone()).await;
+    tokio::spawn(async move { axum::serve(mock_listener, mrouter).await.unwrap() });
+
+    let satori_listener = free_listener().await;
+    let satori_port = satori_listener.local_addr().unwrap().port();
+    let cfg = test_config(
+        format!("http://127.0.0.1:{}", mock_port),
+        format!("127.0.0.1:{}", satori_port),
+    );
+    let (bridge, _cfg) = init_bridge(cfg).await.unwrap();
+    let router = build_router(bridge.clone(), "");
+    tokio::spawn(async move { axum::serve(satori_listener, router).await.unwrap() });
+    tokio::spawn(async move { bridge.run_sync().await });
+
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+    let uri = format!("ws://127.0.0.1:{}/v1/events", satori_port);
+    let mut req = IntoClientRequest::into_client_request(&uri).unwrap();
+    req.headers_mut()
+        .insert("Authorization", "Bearer satori-secret".parse().unwrap());
+    let (mut ws, _resp) = tokio_tungstenite::connect_async(req).await.unwrap();
+
+    use futures::{SinkExt, StreamExt};
+    use tokio_tungstenite::tungstenite::Message;
+    ws.send(Message::Text(
+        json!({"op": 3, "body": {"token": "satori-secret", "sn": 0}}).to_string(),
+    ))
+    .await
+    .unwrap();
+
+    let mut content = String::new();
+    for _ in 0..60 {
+        let msg = tokio::time::timeout(std::time::Duration::from_millis(300), ws.next())
+            .await
+            .ok()
+            .flatten();
+        let Some(Ok(Message::Text(text))) = msg else {
+            continue;
+        };
+        let v: Value = serde_json::from_str(&text).unwrap();
+        if v["op"] == 0
+            && v["body"]["type"] == "message-created"
+            && v["body"]["message"]["id"] == "$reply1"
+        {
+            content = v["body"]["message"]["content"]
+                .as_str()
+                .unwrap_or("")
+                .to_string();
+            break;
+        }
+    }
+    assert!(!content.is_empty(), "never received reply $reply1 over WS");
+    assert!(
+        content.starts_with("<quote "),
+        "content must start with a <quote> element: {}",
+        content
+    );
+    assert!(
+        content.contains("id=\"$orig\""),
+        "quote must carry the referenced event id: {}",
+        content
+    );
+    assert!(
+        content.contains("original quoted text"),
+        "quote must carry the referenced message content: {}",
+        content
+    );
+    assert!(
+        content.contains("<user id=\"@alice:example.com\""),
+        "quote must carry the referenced sender: {}",
+        content
+    );
+    assert!(
+        content.contains("my reply"),
+        "original reply text must follow the quote: {}",
+        content
+    );
 }
 
 #[tokio::test]

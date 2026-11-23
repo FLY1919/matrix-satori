@@ -1,7 +1,7 @@
 //! Bridges Matrix sync events into Satori events and broadcasts them to clients.
 
 use crate::config::Config;
-use crate::element::matrix_to_satori;
+use crate::element::{html_escape_attr, matrix_to_satori};
 use crate::matrix::{EventInfo, MatrixClient, SyncResponse};
 use crate::satori::{Channel, Event, EventLogin, Guild, Login, Message, User};
 use serde_json::Value;
@@ -286,10 +286,91 @@ impl Bridge {
         }
     }
 
+    /// Fetch a Matrix event and build a Satori `quote` Message for it.
+    /// Best-effort: if the event cannot be fetched (redacted, no permission,
+    /// encrypted without keys), fall back to a quote carrying only the id —
+    /// Koishi can still identify the referenced message.
+    async fn quoted_message(&self, room_id: &str, event_id: &str) -> Message {
+        let mut quote = Message {
+            id: Some(event_id.to_string()),
+            ..Default::default()
+        };
+        match self.matrix.get_event(room_id, event_id).await {
+            Ok(ev) => {
+                let sender = ev
+                    .get("sender")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string();
+                if !sender.is_empty() {
+                    let (name, avatar) = self.user_info(&sender).await;
+                    quote.user = Some(User {
+                        id: sender,
+                        name,
+                        avatar,
+                        ..Default::default()
+                    });
+                }
+                quote.content = Some(matrix_to_satori(
+                    ev.get("content").unwrap_or(&Value::Null),
+                    &self.config.homeserver,
+                    &self.self_id,
+                ));
+                quote.timestamp = ev.get("origin_server_ts").and_then(Value::as_i64);
+            }
+            Err(e) => debug!("could not fetch quoted event {}: {}", event_id, e),
+        }
+        quote
+    }
+
+    /// Serialize a Satori quote as a `<quote>` element. The official adapter's
+    /// `session.content` setter decodes a leading `<quote>` from the content
+    /// string into `message.quote`; a standalone `message.quote` JSON field is
+    /// cleared by that same setter. So the quote MUST live in the content text.
+    fn quote_element(quote: &Message) -> String {
+        let id = quote.id.as_deref().unwrap_or("");
+        let mut out = format!("<quote id=\"{}\"", html_escape_attr(id));
+        if let Some(ts) = quote.timestamp {
+            out.push_str(&format!(" timestamp=\"{}\"", ts));
+        }
+        out.push('>');
+        if let Some(user) = &quote.user {
+            out.push_str(&format!("<user id=\"{}\"", html_escape_attr(&user.id)));
+            if let Some(name) = &user.name {
+                out.push_str(&format!(" name=\"{}\"", html_escape_attr(name)));
+            }
+            if let Some(avatar) = &user.avatar {
+                out.push_str(&format!(" avatar=\"{}\"", html_escape_attr(avatar)));
+            }
+            out.push_str("/>");
+        }
+        if let Some(content) = &quote.content {
+            out.push_str(content);
+        }
+        out.push_str("</quote>");
+        out
+    }
+
     pub(crate) async fn emit_message(&self, room_id: &str, info: &EventInfo) {
         // ignore our own echoes for message-created; client handles 'send' echo itself
         let is_self = info.sender == self.self_id;
-        let content = matrix_to_satori(&info.content, &self.config.homeserver, &self.self_id);
+        let mut content = matrix_to_satori(&info.content, &self.config.homeserver, &self.self_id);
+
+        // reply relation -> quote, encoded at the START of content so Koishi's
+        // adapter decodes it into `session.quote` with full content + user.
+        let mut quote: Option<Box<Message>> = None;
+        if let Some(eid) = info
+            .content
+            .get("m.relates_to")
+            .and_then(|r| r.get("m.in_reply_to"))
+            .and_then(|r| r.get("event_id"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+        {
+            let quoted = self.quoted_message(room_id, &eid).await;
+            content = format!("{}{}", Self::quote_element(&quoted), content);
+            quote = Some(Box::new(quoted));
+        }
 
         let (user_name, user_avatar) = self.user_info(&info.sender).await;
         let user = User {
@@ -307,7 +388,7 @@ impl Bridge {
             now_ms()
         };
 
-        let mut message = Message {
+        let message = Message {
             id: Some(info.event_id.clone()),
             channel: Some(channel.clone()),
             guild: guild.clone(),
@@ -315,24 +396,11 @@ impl Bridge {
             member: None,
             content: Some(content),
             timestamp: Some(ts),
-            quote: None,
+            quote,
             created_at: Some(ts),
             updated_at: None,
         };
 
-        // reply relation -> quote
-        if let Some(rel) = info
-            .content
-            .get("m.relates_to")
-            .and_then(|r| r.get("m.in_reply_to"))
-        {
-            if let Some(eid) = rel.get("event_id").and_then(Value::as_str) {
-                message.quote = Some(Box::new(Message {
-                    id: Some(eid.to_string()),
-                    ..Default::default()
-                }));
-            }
-        }
         // edit relation
         if info
             .content
@@ -636,7 +704,8 @@ fn now_ms() -> i64 {
 
 #[cfg(test)]
 mod tests {
-    use super::display_name_from_user_id;
+    use super::{display_name_from_user_id, Bridge};
+    use crate::satori::{Message, User};
 
     #[test]
     fn display_name_from_regular_matrix_id() {
@@ -655,5 +724,41 @@ mod tests {
             "not-a-matrix-id"
         );
         assert_eq!(display_name_from_user_id("@:server"), "@:server");
+    }
+
+    #[test]
+    fn quote_element_decodes_into_koishi_session_quote() {
+        // The official adapter's content setter decodes a leading <quote>
+        // element into session.quote. Verify our encoding matches that shape:
+        // <quote id=...><user id=.../>被引内容</quote>
+        let quote = Message {
+            id: Some("$orig".into()),
+            timestamp: Some(1700000000000i64),
+            user: Some(User {
+                id: "@alice:s".into(),
+                name: Some("Alice".into()),
+                ..Default::default()
+            }),
+            content: Some("hello <b>world</b>".into()),
+            ..Default::default()
+        };
+        let el = Bridge::quote_element(&quote);
+        assert_eq!(
+            el,
+            "<quote id=\"$orig\" timestamp=\"1700000000000\">\
+             <user id=\"@alice:s\" name=\"Alice\"/>hello <b>world</b></quote>"
+        );
+    }
+
+    #[test]
+    fn quote_element_escapes_attrs_and_handles_minimal_quote() {
+        let quote = Message {
+            id: Some("$e&1".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            Bridge::quote_element(&quote),
+            "<quote id=\"$e&amp;1\"></quote>"
+        );
     }
 }

@@ -544,14 +544,11 @@ pub fn satori_to_matrix_with_media(
                         // homeserver by the async layer; embed the real mxc.
                         uploaded.clone()
                     } else {
-                        // Not uploaded (or upload failed): keep as a link.
-                        plain.push_str(&src);
-                        html.push_str(&format!(
-                            "<a href=\"{}\">{}</a>",
-                            html_escape_attr(&src),
-                            html_escape_text(&src)
-                        ));
-                        continue;
+                        // Download failed (e.g. anti-hotlink 403 on a music
+                        // CDN). Keep the media message type with the original
+                        // URL so the client shows a playable/downloadable
+                        // attachment instead of a bare text link.
+                        src.clone()
                     };
                     let title = el.attrs.get("title").cloned().unwrap_or_default();
                     let info = build_media_info(el);
@@ -617,6 +614,99 @@ pub fn satori_to_matrix_with_media(
 /// async upload pass.
 pub fn satori_to_matrix(content: &str, homeserver: &str) -> Value {
     satori_to_matrix_with_media(content, homeserver, &HashMap::new())
+}
+
+/// Split one Satori content string into one or more Matrix message contents.
+///
+/// Matrix has a single `msgtype` per event, so a mixed message (text + several
+/// images/audio) cannot be one event without losing parts. We split by top
+/// level node:
+///   * contiguous text / inline decoration nodes -> one `m.text`
+///   * each `img` / `audio` / `video` / `file` -> its own media message
+///   * a leading `quote` element is remembered as the reply target and applied
+///     to every segment, so a quoted mixed message keeps its reply relation.
+///
+/// Elements Matrix cannot represent (message/author/button/...) are rendered
+/// by the normal inline fallback into the current text segment, so nothing is
+/// silently dropped.
+pub fn satori_to_matrix_segments(
+    content: &str,
+    homeserver: &str,
+    resolved: &HashMap<String, String>,
+) -> Vec<Value> {
+    let nodes = parse(content);
+    let mut segments: Vec<Value> = Vec::new();
+    let mut text_buf: Vec<Node> = Vec::new();
+    let mut quote_target: Option<String> = None;
+
+    /// Render accumulated inline/text nodes into one m.text content.
+    fn flush_text(
+        buf: &mut Vec<Node>,
+        homeserver: &str,
+        quote: Option<&str>,
+        out: &mut Vec<Value>,
+    ) {
+        if buf.is_empty() {
+            return;
+        }
+        let s = to_string(buf);
+        let mut v = satori_to_matrix_with_media(&s, homeserver, &HashMap::new());
+        if let Some(qid) = quote {
+            v["m.relates_to"] = json!({"m.in_reply_to": {"event_id": qid}});
+        }
+        out.push(v);
+        buf.clear();
+    }
+
+    for node in nodes {
+        match node {
+            Node::Element(el) if el.tag == "quote" => {
+                if let Some(id) = el.attrs.get("id") {
+                    quote_target = Some(id.clone());
+                }
+                // The quoted text itself is decoration; keep it as text so the
+                // reply still shows the quoted excerpt inline.
+                text_buf.push(Node::Element(el));
+            }
+            Node::Element(el) if matches!(el.tag.as_str(), "img" | "audio" | "video" | "file") => {
+                flush_text(
+                    &mut text_buf,
+                    homeserver,
+                    quote_target.as_deref(),
+                    &mut segments,
+                );
+                // Turn this single media element into one message. Reuse the
+                // existing converter by serializing it back to a Satori string.
+                let s = to_string(&[Node::Element(el)]);
+                let mut v = satori_to_matrix_with_media(&s, homeserver, resolved);
+                if let Some(qid) = quote_target.as_deref() {
+                    v["m.relates_to"] = json!({"m.in_reply_to": {"event_id": qid}});
+                }
+                segments.push(v);
+            }
+            other => text_buf.push(other),
+        }
+    }
+    flush_text(
+        &mut text_buf,
+        homeserver,
+        quote_target.as_deref(),
+        &mut segments,
+    );
+
+    // Empty content still produces one empty text message, matching the old
+    // single-message behaviour (callers expect at least one event id back).
+    if segments.is_empty() {
+        let mut v = json!({
+            "msgtype": "m.text", "body": "",
+            "format": "org.matrix.custom.html", "formatted_body": "",
+        });
+        if let Some(qid) = quote_target.as_deref() {
+            v["m.relates_to"] = json!({"m.in_reply_to": {"event_id": qid}});
+        }
+        segments.push(v);
+    }
+    segments
 }
 
 fn build_media_info(el: &Element) -> Option<Value> {
@@ -1338,13 +1428,10 @@ mod tests {
     #[test]
     fn remote_media_resolved_becomes_real_image() {
         let src = r#"<img src="https://pighub.top/images/万猪拱塔.jpg" title="pig"/>"#;
-        // Without the upload map it stays a link.
+        // Without the upload map it keeps the media type with the raw URL.
         let plain = satori_to_matrix(src, HS);
-        assert_eq!(plain["msgtype"], "m.text");
-        assert!(plain["formatted_body"]
-            .as_str()
-            .unwrap()
-            .contains("pighub.top"));
+        assert_eq!(plain["msgtype"], "m.image");
+        assert_eq!(plain["url"], "https://pighub.top/images/万猪拱塔.jpg");
 
         // With the map it becomes a real m.image pointing at the uploaded mxc.
         let mut resolved = HashMap::new();
@@ -1359,10 +1446,62 @@ mod tests {
     }
 
     #[test]
-    fn remote_media_failed_upload_falls_back_to_link() {
-        let src = r#"<img src="https://e.com/x.png"/>"#;
+    fn remote_media_failed_upload_keeps_media_semantics() {
+        // A CDN that rejects our download (e.g. anti-hotlink 403) must not
+        // degrade the media message into a plain text link. Keep the msgtype
+        // and the original URL so the client can still show a playable element.
+        let src = r#"<audio src="https://m701.music.126.net/song.mp3?vuutv=x"/>"#;
         let v = satori_to_matrix_with_media(src, HS, &HashMap::new());
-        assert_eq!(v["msgtype"], "m.text");
-        assert!(v["formatted_body"].as_str().unwrap().contains("<a href="));
+        assert_eq!(v["msgtype"], "m.audio");
+        assert_eq!(v["url"], "https://m701.music.126.net/song.mp3?vuutv=x");
+        // No bare <a href> link should be emitted in place of the media.
+        assert!(!v["formatted_body"]
+            .as_str()
+            .unwrap_or("")
+            .contains("<a href="));
+    }
+
+    #[test]
+    fn mixed_content_splits_into_separate_messages() {
+        let src = "先看这个 <img src=\"mxc://s/a\"/> 还有 <audio src=\"mxc://s/b\"/> 结束";
+        let segs = satori_to_matrix_segments(src, HS, &HashMap::new());
+        // text + image + text + audio + text => contiguous text merged:
+        // text("先看这个 "), image, text(" 还有 "), audio, text(" 结束")
+        assert_eq!(segs.len(), 5, "{:?}", segs);
+        assert_eq!(segs[0]["msgtype"], "m.text");
+        assert!(segs[0]["body"].as_str().unwrap().contains("先看这个"));
+        assert_eq!(segs[1]["msgtype"], "m.image");
+        assert_eq!(segs[1]["url"], "mxc://s/a");
+        assert_eq!(segs[2]["msgtype"], "m.text");
+        assert_eq!(segs[3]["msgtype"], "m.audio");
+        assert_eq!(segs[3]["url"], "mxc://s/b");
+        assert_eq!(segs[4]["msgtype"], "m.text");
+        assert!(segs[4]["body"].as_str().unwrap().contains("结束"));
+    }
+
+    #[test]
+    fn leading_quote_applies_reply_to_every_segment() {
+        let src = "<quote id=\"$orig\">原文</quote>文字 <img src=\"mxc://s/a\"/>";
+        let segs = satori_to_matrix_segments(src, HS, &HashMap::new());
+        assert!(segs.len() >= 2);
+        for seg in &segs {
+            assert_eq!(
+                seg["m.relates_to"]["m.in_reply_to"]["event_id"], "$orig",
+                "every segment must keep the reply relation: {:?}",
+                seg
+            );
+        }
+    }
+
+    #[test]
+    fn unhandled_elements_are_not_dropped() {
+        // Matrix has no <button>/<message> equivalent; they must degrade into
+        // the text segment instead of vanishing.
+        let src = "<message id=\"$m\"><author id=\"@a:s\" name=\"A\"/>hi</message><button id=\"b\">go</button>";
+        let segs = satori_to_matrix_segments(src, HS, &HashMap::new());
+        assert_eq!(segs.len(), 1);
+        let body = segs[0]["body"].as_str().unwrap();
+        assert!(body.contains("hi"), "{}", body);
+        assert!(body.contains("go"), "{}", body);
     }
 }

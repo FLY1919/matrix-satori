@@ -7,7 +7,7 @@
     powershell -ExecutionPolicy Bypass -File .\install.ps1
 
 .EXAMPLE
-    .\install.ps1 -Version v0.2.5 -InstallDir C:\Tools -LoginMethod password
+    .\install.ps1 -Version v0.2.6 -InstallDir C:\Tools -LoginMethod password
     .\install.ps1 -FromSource
     .\install.ps1 -Uninstall
 #>

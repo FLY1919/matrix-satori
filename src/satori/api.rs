@@ -1,7 +1,7 @@
 //! Satori HTTP API: `POST /v1/<method>` and `GET /v1/<method>`.
 
 use crate::bridge::Bridge;
-use crate::element::satori_to_matrix_with_media;
+use crate::element::{satori_to_matrix_segments, satori_to_matrix_with_media};
 use crate::satori::{Channel, Guild, Message, User};
 use axum::extract::{MatchedPath, Multipart, RawQuery, State};
 use axum::http::{header, HeaderMap, StatusCode};
@@ -110,57 +110,67 @@ async fn dispatch(bridge: &Arc<Bridge>, method: &str, a: &Value, _q: &Option<Str
             // Download + upload any remote media first so images/videos render
             // as real Matrix media instead of bare links.
             let resolved = bridge.resolve_remote_media(content).await;
-            let mut matrix_content = satori_to_matrix_with_media(content, homeserver, &resolved);
-            // Satori passes the quoted message in `referrer` (an object with `message_id`).
-            // Matrix expresses a reply via m.relates_to.m.in_reply_to.event_id.
+            // A single Satori content may mix text with several media elements,
+            // but a Matrix event carries exactly one msgtype. Split it into
+            // separate events so nothing is dropped (e.g. text + 2 images).
+            let mut segments = satori_to_matrix_segments(content, homeserver, &resolved);
+            // Satori passes the quoted message in `referrer` (an object with
+            // `message_id`). Matrix expresses a reply via
+            // m.relates_to.m.in_reply_to.event_id. Apply to every segment so a
+            // quoted mixed message keeps its reply relation throughout.
             let quote_event = a
                 .get("referrer")
                 .and_then(|r| r.get("message_id").or_else(|| r.get("id")))
                 .and_then(Value::as_str)
                 .map(str::to_string);
             if let Some(qid) = quote_event {
-                let relates = matrix_content
-                    .as_object_mut()
-                    .map(|o| o.entry("m.relates_to").or_insert_with(|| json!({})));
-                if let Some(rel) = relates.and_then(Value::as_object_mut) {
-                    rel.insert("m.in_reply_to".into(), json!({"event_id": qid}));
+                for matrix_content in &mut segments {
+                    let relates = matrix_content
+                        .as_object_mut()
+                        .map(|o| o.entry("m.relates_to").or_insert_with(|| json!({})));
+                    if let Some(rel) = relates.and_then(Value::as_object_mut) {
+                        rel.insert("m.in_reply_to".into(), json!({"event_id": qid}));
+                    }
                 }
             }
             // Send through the single SDK client when available: it encrypts
             // in encrypted rooms and sends plaintext in plain rooms. Fall back
             // to the lightweight HTTP path only before the SDK is installed.
-            let event_id = match bridge
-                .sdk_send_raw(room, "m.room.message", &matrix_content)
-                .await
-            {
-                Some(id) => id,
-                None => bridge
-                    .matrix
-                    .send_message(room, &matrix_content, None)
+            let mut messages = Vec::new();
+            for matrix_content in &segments {
+                let event_id = match bridge
+                    .sdk_send_raw(room, "m.room.message", matrix_content)
                     .await
-                    .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?,
-            };
-            // Also emit locally so the sender sees its own message immediately,
-            // matching other Satori adapters.
-            let msg = Message {
-                id: Some(event_id.clone()),
-                channel: Some(Channel {
-                    id: room.into(),
-                    r#type: 0,
-                    name: None,
-                    parent_id: None,
-                    position: None,
-                }),
-                user: Some(User {
-                    id: bridge.self_id.clone(),
-                    is_bot: Some(true),
+                {
+                    Some(id) => id,
+                    None => bridge
+                        .matrix
+                        .send_message(room, matrix_content, None)
+                        .await
+                        .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?,
+                };
+                // Also emit locally so the sender sees its own message
+                // immediately, matching other Satori adapters.
+                messages.push(Message {
+                    id: Some(event_id),
+                    channel: Some(Channel {
+                        id: room.into(),
+                        r#type: 0,
+                        name: None,
+                        parent_id: None,
+                        position: None,
+                    }),
+                    user: Some(User {
+                        id: bridge.self_id.clone(),
+                        is_bot: Some(true),
+                        ..Default::default()
+                    }),
+                    content: Some(content.to_string()),
+                    created_at: Some(now_ms()),
                     ..Default::default()
-                }),
-                content: Some(content.to_string()),
-                created_at: Some(now_ms()),
-                ..Default::default()
-            };
-            Ok(json!([msg]))
+                });
+            }
+            Ok(json!(messages))
         }
 
         "message.update" => {
