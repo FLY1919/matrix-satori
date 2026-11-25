@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 # matrix-satori 一键安装
 #   curl -fsSL https://raw.githubusercontent.com/FLY1919/matrix-satori/main/install.sh | sh
-#   sh install.sh --version v0.2.8 --no-systemd --mirror cn
+#   sh install.sh --version v0.2.9 --no-systemd --mirror cn
 set -eu
 
 BIN=matrix-satori

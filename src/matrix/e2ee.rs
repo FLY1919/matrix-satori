@@ -40,14 +40,10 @@ pub fn e2ee_available(creds: &Credentials) -> bool {
         && !creds.user_id.is_empty()
 }
 
-/// Build + restore the SDK client, register every event handler, start the
-/// single sync loop, and install the client into `Bridge` so Satori API calls
-/// (send message / reaction / upload) can reuse it.
-pub async fn start(
-    config: Arc<Config>,
-    creds: Credentials,
-    bridge: Arc<Bridge>,
-) -> anyhow::Result<()> {
+/// Build an SDK client backed by the persistent per-account sqlite store and
+/// restore the session from `creds`. Shared by the long-running sync engine
+/// and the one-shot `verify` CLI so both operate on the SAME device/olm keys.
+pub async fn build_client(config: &Config, creds: &Credentials) -> anyhow::Result<Client> {
     // The SDK sqlite store binds to one account (user_id + device_id) and
     // refuses to open if a different account was stored there ("account in the
     // store doesn't match the account in the constructor"). Namespace the store
@@ -86,7 +82,7 @@ pub async fn start(
     let session = MatrixSession {
         meta: SessionMeta { user_id, device_id },
         tokens: SessionTokens {
-            access_token: creds.access_token,
+            access_token: creds.access_token.clone(),
             refresh_token: None,
         },
     };
@@ -96,6 +92,18 @@ pub async fn start(
         client.user_id().map(|u| u.as_str()).unwrap_or("?"),
         creds.method
     );
+    Ok(client)
+}
+
+/// Build + restore the SDK client, register every event handler, start the
+/// single sync loop, and install the client into `Bridge` so Satori API calls
+/// (send message / reaction / upload) can reuse it.
+pub async fn start(
+    config: Arc<Config>,
+    creds: Credentials,
+    bridge: Arc<Bridge>,
+) -> anyhow::Result<()> {
+    let client = build_client(&config, &creds).await?;
 
     // Install this client into the bridge BEFORE sync so API sends reuse it.
     bridge.set_sdk_client(client.clone());

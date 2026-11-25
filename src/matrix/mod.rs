@@ -259,7 +259,7 @@ impl MatrixClient {
         limit: u64,
     ) -> Result<Value> {
         let mut q: Vec<(String, String)> = vec![
-            (String::from("dir"), String::from(dir)),
+            (String::from("dir"), String::from(matrix_dir(dir))),
             (String::from("limit"), limit.to_string()),
         ];
         if let Some(f) = from {
@@ -672,9 +672,29 @@ fn urlencoding(s: &str) -> String {
     out
 }
 
+/// Map Satori's `direction` values to the Matrix CS API `dir` parameter.
+/// Matrix only accepts "b" (backwards) / "f" (forwards); anything else yields
+/// M_INVALID_PARAM. Satori sends "before"/"after".
+fn matrix_dir(dir: &str) -> &'static str {
+    match dir {
+        "after" | "f" | "forward" | "forwards" => "f",
+        _ => "b", // before / b / backward / backwards / default
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn satori_direction_maps_to_matrix_dir() {
+        assert_eq!(matrix_dir("before"), "b");
+        assert_eq!(matrix_dir("after"), "f");
+        assert_eq!(matrix_dir("b"), "b");
+        assert_eq!(matrix_dir("f"), "f");
+        assert_eq!(matrix_dir("forward"), "f");
+        assert_eq!(matrix_dir(""), "b");
+    }
 
     #[test]
     fn url_encoding() {

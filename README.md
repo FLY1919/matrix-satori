@@ -62,21 +62,24 @@ Koishi (adapter-satori)  ──WebSocket/HTTP──▶  matrix-satori  ──Mat
 **设备验证（SAS / cross-signing）**：新设备默认"未验证"，其他客户端不会给它分发 room key，日志里会出现 `Can't find the room key`。用下面任一方式把本设备加入 cross-sign 信任链后，对方会通过 `m.secret.send` 自动推送 room key 和备份密钥，加密消息即可解密：
 
 - **有恢复密钥（EsT 开头）**：最省事。在 Element/FluffyChat 里用恢复密钥把本设备验证一次即可；程序侧也可扩展自动 `recovery().recover(key)`（当前需手动在客户端完成一次）。
-- **无恢复密钥（SAS emoji 验证）**：v0.2.8 起内置 10 个 `matrix.verify.*` 方法，用 Koishi 或 `curl` 驱动：
+- **无恢复密钥（SAS emoji 验证）**：v0.2.9 起提供**命令行交互工具**（推荐，因为 emoji 需要你本人肉眼比对，AI/脚本没法替你点客户端）。用与服务端相同的连接配置（env 或 `state_dir/config.toml`，见下表的 `MATRIX_*`），进入交互 REPL：
 
   ```sh
-  # 1. 看本设备验证状态与所有设备（找到已验证的那台 device_id）
-  curl -s -H 'Authorization: Bearer <SATORI_TOKEN>' -X POST http://127.0.0.1:5140/v1/matrix.devices.list -d '{}'
-  # 2. 从本设备向你已验证的手机/网页设备发起 SAS（记下 flow_id）
-  curl -s -H 'Authorization: Bearer <SATORI_TOKEN>' -X POST http://127.0.0.1:5140/v1/matrix.verify.request \
-    -d '{"device_id":"<已验证设备的device_id>"}'
-  # 3. 对方客户端接受后，读取 emoji（两边屏幕上的 7 个 emoji 应一致）
-  curl -s -H 'Authorization: Bearer <SATORI_TOKEN>' -X POST http://127.0.0.1:5140/v1/matrix.verify.sas_info -d '{"flow_id":"<flow_id>"}'
-  # 4. 比对一致 → 确认；对方也确认后本设备即被 cross-sign
-  curl -s -H 'Authorization: Bearer <SATORI_TOKEN>' -X POST http://127.0.0.1:5140/v1/matrix.verify.confirm -d '{"flow_id":"<flow_id>"}'
+  matrix-satori verify            # 无子命令 = 交互式 REPL（保持同一个 SDK 客户端，SAS 状态全程不丢）
+  verify> status                               # 看本机设备验证/交叉签名状态
+  verify> devices                              # 列出所有设备及 device_id、是否 verified
+  verify> request --device <已验证设备的device_id>   # 发起 SAS，记下输出的 flow
+  # 在手机/网页客户端点"接受验证"
+  verify> sas --flow <flow>                    # 终端打印 7 个 emoji + 数字；和对方屏幕比对
+  verify> confirm --flow <flow>                # 一致就确认；对方也确认后即被 cross-sign
+  verify> status                               # cross_signed_by_owner = true
   ```
 
-  若对方主动发起验证，程序会推一个 `verification-request` 事件（content 里带 flow_id），用 `matrix.verify.list` 也能看到，然后走 `accept → start_sas → sas_info → confirm`。不一致时用 `matrix.verify.mismatch` 中止。
+  也可用 `help` 看全部命令（accept/start-sas/mismatch/cancel/list/quit）。不一致用 `mismatch --flow`，想中止用 `cancel --flow`。
+
+  > SAS 状态只在 SDK 客户端内存中存活，所以**完整流程必须在同一个 `verify` REPL 会话里走完**。像 `matrix-satori verify status`、`verify devices` 这种无状态查询可以带子命令一次执行完。
+
+  另外 v0.2.8 起也内置 10 个 `matrix.verify.*` HTTP 方法（供 Koishi / `curl` 驱动），路径 `/v1/matrix.verify.*`（status / devices.list / list / request / accept / start_sas / sas_info / confirm / mismatch / cancel）。若对方主动发起验证，程序会推 `verification-request` 事件（content 带 flow_id），走 `accept → start_sas → sas_info → confirm`。
 
 **Matrix 有 WebSocket 吗？**：没有。官方 Client-Server API 基线是 HTTP 长轮询 `/sync`，sliding sync（MSC4186）也是 HTTP；规范把"更高效传输"留作未来可选扩展，至今无 WS 传输。本程序对 Koishi 侧是 Satori WebSocket（`/v1/events`），对 Matrix 侧走官方 SDK 的 HTTP sync。
 
@@ -318,7 +321,8 @@ sync_timeout = 30000
 
 ## 已验证 / 限制
 
-- **79 个测试全部通过**：单元（元素解析 / 登录名 / TOML 配置自动创建·读取·CLI 覆盖 / E2EE 可用性判断 / 方法注册一致性）+ 9 登录方式集成（password / token / appservice / access-token / auto / flows 探测 / 凭据缓存）+ 18 服务端集成（WS READY、事件推送、PING-PONG、message.create 调用链、鉴权、全 Satori 元素、全事件集、Matrix 特有 API、验证 API 降级、reaction / channel / upload）。登录测试用 mock homeserver 验证真实 HTTP 交互。
+- **80 个测试全部通过**：单元（53：元素解析 / 登录名 / TOML 配置自动创建·读取·CLI 覆盖 / E2EE 可用性判断 / 方法注册一致性 / Satori direction→Matrix dir 映射）+ 9 登录方式集成（password / token / appservice / access-token / auto / flows 探测 / 凭据缓存）+ 18 服务端集成（WS READY、事件推送、PING-PONG、message.create 调用链、鉴权、全 Satori 元素、全事件集、Matrix 特有 API、验证 API 降级、reaction / channel / upload）。登录测试用 mock homeserver 验证真实 HTTP 交互。
+- **真实账号实测**：用 `@fly_hx:mozilla.org`（mozilla.modular.im）跑通 19/19 个 HTTP API（channel/guild/message/user/member/reaction/matrix.*/verify.* 全部 2xx），WS IDENTIFY→READY 握手携带完整 login.user；`verify` REPL 在同一会话内完成 SAS request→cancel（状态保持验证）。实测中发现并修复 `message.list` 的 `direction=before/after` 未映射为 Matrix `dir=b/f` 导致 400 的问题。
 - **单一 SDK 收发 + E2EE 已支持**：基于官方 `matrix-sdk` 用 `restore_session` 复用登录设备，全局只有一条连接，收消息和发消息都走它（加密房间自动加/解密，同一条消息只推一次）；SSO / password / token / auto 均可用，密钥经 SQLite 持久化、重启后仍可解密。启用条件、设备独占要求与历史消息限制见上方「加密房间（E2EE）与收发架构」章节。
 - 反应删除（`reaction.delete/clear`）需要 Matrix 侧的反应事件 ID，而 Satori 该 action 不带，目前是空操作。
 

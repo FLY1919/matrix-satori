@@ -7,6 +7,21 @@ use tracing::info;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // `matrix-satori verify <subcommand>` drives device verification directly
+    // from the terminal. Peel off the leading "verify" token and dispatch before
+    // the normal server CLI parser (which would reject the subcommand).
+    let argv: Vec<std::ffi::OsString> = std::env::args_os().collect();
+    if argv
+        .get(1)
+        .and_then(|s| s.to_str())
+        .map(|s| s == "verify")
+        .unwrap_or(false)
+    {
+        let mut verify_argv = argv;
+        verify_argv.remove(1);
+        return matrix_satori::verify_cli::run(verify_argv).await;
+    }
+
     let config = Config::load()?;
     tracing_subscriber::fmt()
         .with_env_filter(&config.log)

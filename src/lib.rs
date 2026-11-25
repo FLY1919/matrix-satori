@@ -7,6 +7,7 @@ pub mod config;
 pub mod element;
 pub mod matrix;
 pub mod satori;
+pub mod verify_cli;
 
 use auth::{AuthClient, Credentials};
 use axum::routing::{get, post};

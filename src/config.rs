@@ -188,7 +188,7 @@ impl Config {
         Self::load_from(&cli)
     }
 
-    fn load_from(cli: &CliOverrides) -> anyhow::Result<Self> {
+    pub fn load_from(cli: &CliOverrides) -> anyhow::Result<Self> {
         // The state dir itself may be overridden on the CLI; resolve it first.
         let state_dir = cli
             .state_dir
