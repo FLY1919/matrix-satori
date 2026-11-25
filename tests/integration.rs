@@ -107,6 +107,51 @@ async fn empty_post() -> Json<Value> {
     Json(json!({}))
 }
 
+async fn all_state() -> Json<Value> {
+    Json(json!([
+        {"type":"m.room.power_levels","state_key":"","content":{"users_default":0}},
+        {"type":"m.room.name","state_key":"","content":{"name":"测试房间"}}
+    ]))
+}
+
+async fn one_state(
+    axum::extract::Path((_room, etype, _skey)): axum::extract::Path<(String, String, String)>,
+) -> Json<Value> {
+    state_payload(&etype)
+}
+
+async fn state_no_key(
+    axum::extract::Path((_room, etype)): axum::extract::Path<(String, String)>,
+) -> Json<Value> {
+    state_payload(&etype)
+}
+
+fn state_payload(etype: &str) -> Json<Value> {
+    if etype == "m.room.power_levels" {
+        Json(json!({"type":"m.room.power_levels","state_key":"",
+            "content":{"users_default":0,"users":{"@alice:example.com":100}}}))
+    } else {
+        Json(json!({"type":etype,"state_key":"","content":{"name":"测试房间"}}))
+    }
+}
+
+async fn members() -> Json<Value> {
+    Json(json!({"chunk":[
+        {"state_key":"@alice:example.com","content":{"membership":"join"}},
+        {"state_key":"@bob:example.com","content":{"membership":"join"}}
+    ]}))
+}
+
+async fn generic_send(
+    State(state): State<Arc<MockState>>,
+    axum::extract::Path((room, etype, _txn)): axum::extract::Path<(String, String, String)>,
+    Json(body): Json<Value>,
+) -> Json<Value> {
+    let mut sent = state.sent.lock().await;
+    sent.push(json!({"room":room,"event_type":etype,"content":body}));
+    Json(json!({"event_id": format!("$raw{}", sent.len())}))
+}
+
 async fn upload_media(State(state): State<Arc<MockState>>) -> Json<Value> {
     state.upload_count.fetch_add(1, Ordering::SeqCst);
     Json(json!({"content_uri": "mxc://example.com/UPLOAD1"}))
@@ -154,6 +199,24 @@ async fn mock_router(state: Arc<MockState>) -> Router {
             get(room_name),
         )
         .route("/_matrix/client/v3/account_data", get(account_data))
+        .route("/_matrix/client/v3/rooms/:room/state", get(all_state))
+        .route(
+            "/_matrix/client/v3/rooms/:room/state/:etype/:skey",
+            get(one_state),
+        )
+        .route(
+            "/_matrix/client/v3/rooms/:room/state/:etype",
+            get(state_no_key),
+        )
+        .route(
+            "/_matrix/client/v3/rooms/:room/state/:etype/",
+            get(state_no_key),
+        )
+        .route("/_matrix/client/v3/rooms/:room/members", get(members))
+        .route(
+            "/_matrix/client/v3/rooms/:room/send/:etype/:txn",
+            put(generic_send),
+        )
         .route(
             "/_matrix/client/v3/rooms/:room/event/:event",
             get(get_event),
@@ -1184,4 +1247,237 @@ async fn message_create_auto_uploads_remote_image() {
     let img = &image["content"];
     assert_eq!(img["url"], "mxc://example.com/UPLOAD1");
     assert_eq!(img["body"], "pic");
+}
+
+/// The SDK now dispatches ALL timeline + state events (previously only
+/// message/sticker). Verify the full new event set reaches Koishi over WS:
+/// reaction-added/removed, guild-member-added/updated/removed,
+/// guild-added, channel-updated + guild-updated, message-pinned/unpinned,
+/// and sticker-as-image (message-created).
+#[tokio::test]
+async fn full_satori_event_set_is_pushed_over_ws() {
+    let room = "!room:example.com";
+    let ts = 1700000000100i64;
+    // order matters: reaction before its redaction; member join before update.
+    let events = vec![
+        json!({"type":"m.reaction","event_id":"$r1","sender":"@alice:example.com",
+            "origin_server_ts":ts,"content":{"m.relates_to":{"rel_type":"m.annotation",
+            "event_id":"$target","key":"👍"}}}),
+        json!({"type":"m.room.redaction","event_id":"$red1","sender":"@alice:example.com",
+            "origin_server_ts":ts,"content":{"redacts":"$r1"}}),
+        json!({"type":"m.room.member","event_id":"$m1","sender":"@bob:example.com",
+            "state_key":"@bob:example.com","origin_server_ts":ts,
+            "content":{"membership":"join","displayname":"Bob"}}),
+        json!({"type":"m.room.member","event_id":"$m2","sender":"@bob:example.com",
+            "state_key":"@bob:example.com","origin_server_ts":ts,
+            "content":{"membership":"join","displayname":"Bob2"},
+            "unsigned":{"prev_content":{"membership":"join","displayname":"Bob"}}}),
+        json!({"type":"m.room.member","event_id":"$m3","sender":"@carol:example.com",
+            "state_key":"@carol:example.com","origin_server_ts":ts,
+            "content":{"membership":"leave"}}),
+        json!({"type":"m.room.name","event_id":"$n1","sender":"@bot:example.com",
+            "state_key":"","origin_server_ts":ts,"content":{"name":"新名字"}}),
+        json!({"type":"m.room.pinned_events","event_id":"$p1","sender":"@bot:example.com",
+            "state_key":"","origin_server_ts":ts,"content":{"pinned":["$pinA","$pinB"]}}),
+        json!({"type":"m.sticker","event_id":"$s1","sender":"@dave:example.com",
+            "origin_server_ts":ts,"content":{"body":"cat","url":"mxc://example.com/CAT",
+            "info":{"mime":"image/png"}}}),
+    ];
+    let mock = Arc::new(MockState {
+        syncs: vec![
+            json!({"next_batch":"s1","rooms":{"join":{room:{"timeline":{"events":events}}}}}),
+            // unpin $pinB: pinned list shrinks, triggering message-unpinned.
+            json!({"next_batch":"s2","rooms":{"join":{room:{"timeline":{"events":[
+                json!({"type":"m.room.pinned_events","event_id":"$p2","sender":"@bot:example.com",
+                    "state_key":"","origin_server_ts":ts,"content":{"pinned":["$pinA"]}})
+            ]}}}}}),
+            json!({"next_batch":"s3","rooms":{"join":{}}}),
+        ],
+        ..Default::default()
+    });
+
+    let mock_listener = free_listener().await;
+    let mock_port = mock_listener.local_addr().unwrap().port();
+    let mrouter = mock_router(mock.clone()).await;
+    tokio::spawn(async move { axum::serve(mock_listener, mrouter).await.unwrap() });
+
+    let satori_listener = free_listener().await;
+    let satori_port = satori_listener.local_addr().unwrap().port();
+    let cfg = test_config(
+        format!("http://127.0.0.1:{}", mock_port),
+        format!("127.0.0.1:{}", satori_port),
+    );
+    let (bridge, _cfg) = init_bridge(cfg).await.unwrap();
+    let router = build_router(bridge.clone(), "");
+    tokio::spawn(async move { axum::serve(satori_listener, router).await.unwrap() });
+    tokio::spawn(async move { bridge.run_sync().await });
+
+    use tokio_tungstenite::tungstenite::client::IntoClientRequest;
+    let uri = format!("ws://127.0.0.1:{}/v1/events", satori_port);
+    let mut req = IntoClientRequest::into_client_request(&uri).unwrap();
+    req.headers_mut()
+        .insert("Authorization", "Bearer satori-secret".parse().unwrap());
+    let (mut ws, _resp) = tokio_tungstenite::connect_async(req).await.unwrap();
+
+    use futures::{SinkExt, StreamExt};
+    use tokio_tungstenite::tungstenite::Message;
+    ws.send(Message::Text(
+        json!({"op":3,"body":{"token":"satori-secret","sn":0}}).to_string(),
+    ))
+    .await
+    .unwrap();
+
+    let wanted = [
+        "reaction-added",
+        "reaction-removed",
+        "guild-member-added",
+        "guild-member-updated",
+        "guild-member-removed",
+        "channel-updated",
+        "guild-updated",
+        "message-pinned",
+        "message-unpinned",
+        "message-created",
+    ];
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut sticker_image = false;
+    for _ in 0..80 {
+        let msg = tokio::time::timeout(std::time::Duration::from_millis(200), ws.next())
+            .await
+            .ok()
+            .flatten();
+        let Some(Ok(Message::Text(text))) = msg else {
+            continue;
+        };
+        let v: Value = serde_json::from_str(&text).unwrap();
+        if v["op"] != 0 {
+            continue;
+        }
+        let body = &v["body"];
+        let ty = body["type"].as_str().unwrap_or("").to_string();
+        if ty == "message-created"
+            && body["message"]["content"]
+                .as_str()
+                .unwrap_or("")
+                .contains("cat")
+        {
+            sticker_image = true;
+        }
+        seen.insert(ty);
+        if wanted.iter().all(|w| seen.contains(*w)) && sticker_image {
+            break;
+        }
+    }
+    for w in wanted {
+        assert!(seen.contains(w), "missing event '{}' (seen: {:?})", w, seen);
+    }
+    assert!(
+        sticker_image,
+        "sticker was not delivered as an image message"
+    );
+}
+
+/// Matrix-specific extension methods exposed as Satori custom methods.
+#[tokio::test]
+async fn matrix_specific_api_methods_work() {
+    let mock = Arc::new(MockState {
+        syncs: vec![json!({"next_batch":"s0","rooms":{"join":{}}})],
+        ..Default::default()
+    });
+    let (mp, sp) = spawn_server(mock.clone(), |b, _| build_router(b, "")).await;
+    let client = reqwest::Client::new();
+    let call = |method: &str, body: Value| {
+        let url = format!("http://127.0.0.1:{}/v1/{}", sp, method);
+        let client = client.clone();
+        async move {
+            client
+                .post(&url)
+                .bearer_auth("satori-secret")
+                .json(&body)
+                .send()
+                .await
+                .unwrap()
+        }
+    };
+    let room = "!room:example.com";
+
+    // matrix.send_raw -> goes to generic send endpoint (SDK not installed in
+    // this test, so the HTTP fallback is used).
+    let resp = call(
+        "matrix.send_raw",
+        json!({
+            "channel_id": room, "event_type": "org.example.custom",
+            "content": {"hello": "world"}
+        }),
+    )
+    .await;
+    assert_eq!(resp.status(), 200);
+    let v: Value = resp.json().await.unwrap();
+    assert_eq!(v["event_id"], "$raw1");
+
+    // matrix.get_state -> array of state events.
+    let v: Value = call("matrix.get_state", json!({"channel_id": room}))
+        .await
+        .json()
+        .await
+        .unwrap();
+    assert!(v.as_array().unwrap().len() >= 2);
+
+    // matrix.get_state_event with an explicit state key.
+    let v: Value = call(
+        "matrix.get_state_event",
+        json!({
+            "channel_id": room, "event_type": "m.room.topic", "state_key": ""
+        }),
+    )
+    .await
+    .json()
+    .await
+    .unwrap();
+    assert_eq!(v["type"], "m.room.topic");
+
+    // matrix.power_levels -> m.room.power_levels state event.
+    let v: Value = call("matrix.power_levels", json!({"channel_id": room}))
+        .await
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(v["type"], "m.room.power_levels");
+    assert_eq!(v["content"]["users"]["@alice:example.com"], 100);
+
+    // matrix.get_event -> raw event.
+    let v: Value = call(
+        "matrix.get_event",
+        json!({
+            "channel_id": room, "event_id": "$someevent"
+        }),
+    )
+    .await
+    .json()
+    .await
+    .unwrap();
+    assert_eq!(v["event_id"], "$someevent");
+
+    // matrix.room_members -> {data: [ids]}.
+    let v: Value = call("matrix.room_members", json!({"channel_id": room}))
+        .await
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(v["data"].as_array().unwrap().len(), 2);
+
+    // matrix.mxc_to_http -> pure conversion.
+    let v: Value = call(
+        "matrix.mxc_to_http",
+        json!({
+            "mxc": "mxc://example.com/ABC"
+        }),
+    )
+    .await
+    .json()
+    .await
+    .unwrap();
+    assert!(v["url"].as_str().unwrap().contains("example.com"));
+
+    let _ = mp;
 }

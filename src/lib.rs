@@ -56,6 +56,14 @@ const METHODS: &[&str] = &[
     "upload.create",
     "user.channel.create",
     "user.get",
+    // --- Matrix-specific extension methods (Satori allows custom methods) ---
+    "matrix.send_raw",
+    "matrix.get_state",
+    "matrix.get_state_event",
+    "matrix.power_levels",
+    "matrix.get_event",
+    "matrix.room_members",
+    "matrix.mxc_to_http",
 ];
 
 pub fn build_router(bridge: Arc<Bridge>, prefix: &str) -> Router {

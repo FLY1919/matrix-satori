@@ -186,6 +186,70 @@ impl MatrixClient {
         .await
     }
 
+    /// GET /_matrix/client/v3/rooms/{room}/state — all state events.
+    pub async fn get_state(&self, room_id: &str) -> Result<Value> {
+        self.request(
+            self.http
+                .get(format!(
+                    "{}/_matrix/client/v3/rooms/{}/state",
+                    self.base(),
+                    urlencoding(room_id)
+                ))
+                .bearer_auth(&self.config.access_token),
+        )
+        .await
+    }
+
+    /// GET /_matrix/client/v3/rooms/{room}/state/{type}/{state_key}.
+    pub async fn get_state_event(
+        &self,
+        room_id: &str,
+        event_type: &str,
+        state_key: &str,
+    ) -> Result<Value> {
+        self.request(
+            self.http
+                .get(format!(
+                    "{}/_matrix/client/v3/rooms/{}/state/{}/{}",
+                    self.base(),
+                    urlencoding(room_id),
+                    urlencoding(event_type),
+                    urlencoding(state_key)
+                ))
+                .bearer_auth(&self.config.access_token),
+        )
+        .await
+    }
+
+    /// PUT /_matrix/client/v3/rooms/{room}/send/{event_type}/{txn} — send an
+    /// arbitrary event type (fallback path; production uses the SDK client).
+    pub async fn send_raw(
+        &self,
+        room_id: &str,
+        event_type: &str,
+        content: &Value,
+    ) -> Result<String> {
+        let txn = uuid::Uuid::new_v4().simple().to_string();
+        let v: Value = self
+            .request(
+                self.http
+                    .put(format!(
+                        "{}/_matrix/client/v3/rooms/{}/send/{}/{}",
+                        self.base(),
+                        urlencoding(room_id),
+                        urlencoding(event_type),
+                        txn
+                    ))
+                    .bearer_auth(&self.config.access_token)
+                    .json(content),
+            )
+            .await?;
+        Ok(v.get("event_id")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string())
+    }
+
     /// GET /_matrix/client/v3/rooms/{room}/messages
     pub async fn messages(
         &self,

@@ -19,11 +19,11 @@ use crate::config::Config;
 use matrix_sdk::authentication::matrix::MatrixSession;
 use matrix_sdk::config::SyncSettings;
 use matrix_sdk::event_handler::Ctx;
-use matrix_sdk::ruma::events::room::message::SyncRoomMessageEvent;
-use matrix_sdk::ruma::events::sticker::SyncStickerEvent;
+use matrix_sdk::ruma::events::{AnySyncStateEvent, AnySyncTimelineEvent};
+use matrix_sdk::ruma::serde::Raw;
 use matrix_sdk::ruma::{OwnedDeviceId, OwnedUserId};
 use matrix_sdk::{Client, Room, SessionMeta, SessionTokens};
-use serde_json::{json, Value};
+use serde_json::json;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::{error, info, warn};
@@ -100,23 +100,36 @@ pub async fn start(
     // Install this client into the bridge BEFORE sync so API sends reuse it.
     bridge.set_sdk_client(client.clone());
 
-    // Register handlers. The SDK delivers decrypted content for encrypted rooms
-    // and plain content for plain rooms through these same typed handlers.
+    // Register TWO generic handlers covering EVERY sync event:
+    //   - AnySyncTimelineEvent: m.room.message, m.reaction, m.room.redaction,
+    //     m.sticker, and all other timeline (message-like) events.
+    //   - AnySyncStateEvent: m.room.member, m.room.name, m.room.pinned_events,
+    //     and all other state events.
+    // Previously only message/sticker typed handlers were registered, which
+    // silently dropped reaction/membership/name/redaction/pin events. Serializing
+    // the whole event to wire JSON feeds the single `handle_event_json` entry
+    // point, which `EventInfo::from_value` already understands. The SDK still
+    // decrypts encrypted rooms before these handlers run.
     client.add_event_handler_context(bridge.clone());
     client.add_event_handler(
-        |event: SyncRoomMessageEvent, room: Room, bridge: Ctx<Arc<Bridge>>| async move {
-            if let Some(v) = message_value(&event, room.room_id().as_str()) {
-                bridge.handle_event_json(room.room_id().as_str(), &v).await;
+        |event: Raw<AnySyncTimelineEvent>, room: Room, bridge: Ctx<Arc<Bridge>>| async move {
+            let room_id = room.room_id().as_str();
+            if let Ok(mut v) = serde_json::to_value(&event) {
+                if let Some(obj) = v.as_object_mut() {
+                    obj.insert("room_id".into(), json!(room_id));
+                }
+                bridge.handle_event_json(room_id, &v).await;
             }
         },
     );
-    // Matrix stickers are a separate message-like event (m.sticker), not an
-    // m.room.message, so they never reach the handler above. Convert them into
-    // the same wire shape as an m.image message so Satori sees them as `<img>`.
     client.add_event_handler(
-        |event: SyncStickerEvent, room: Room, bridge: Ctx<Arc<Bridge>>| async move {
-            if let Some(v) = sticker_value(&event, room.room_id().as_str()) {
-                bridge.handle_event_json(room.room_id().as_str(), &v).await;
+        |event: Raw<AnySyncStateEvent>, room: Room, bridge: Ctx<Arc<Bridge>>| async move {
+            let room_id = room.room_id().as_str();
+            if let Ok(mut v) = serde_json::to_value(&event) {
+                if let Some(obj) = v.as_object_mut() {
+                    obj.insert("room_id".into(), json!(room_id));
+                }
+                bridge.handle_event_json(room_id, &v).await;
             }
         },
     );
@@ -157,69 +170,6 @@ pub async fn start(
 const MAX_BACKOFF: u64 = 30;
 fn next_backoff(current: u64) -> u64 {
     current.saturating_mul(2).min(MAX_BACKOFF)
-}
-
-/// Rebuild the wire JSON shape that `EventInfo::from_value` expects from a
-/// decrypted (or plain) `SyncRoomMessageEvent`.
-fn message_value(event: &SyncRoomMessageEvent, room_id: &str) -> Option<Value> {
-    let (event_id, sender, ts, content) = match event {
-        SyncRoomMessageEvent::Original(e) => {
-            let content = serde_json::to_value(&e.content).ok()?;
-            (
-                e.event_id.as_str().to_string(),
-                e.sender.as_str().to_string(),
-                u64::from(e.origin_server_ts.0) as i64,
-                content,
-            )
-        }
-        SyncRoomMessageEvent::Redacted(_) => return None,
-    };
-    Some(json!({
-        "type": "m.room.message",
-        "event_id": event_id,
-        "sender": sender,
-        "origin_server_ts": ts,
-        "room_id": room_id,
-        "content": content,
-    }))
-}
-
-/// Convert an `m.sticker` sync event into the wire shape of an `m.image`
-/// `m.room.message`, so the normal message pipeline turns it into a Satori
-/// `<img>` element. Stickers are images with alt text in Matrix.
-fn sticker_value(event: &SyncStickerEvent, room_id: &str) -> Option<Value> {
-    use matrix_sdk::ruma::events::sticker::StickerMediaSource;
-    let e = match event {
-        SyncStickerEvent::Original(e) => e,
-        SyncStickerEvent::Redacted(_) => return None,
-    };
-    let (event_id, sender, ts) = (
-        e.event_id.as_str().to_string(),
-        e.sender.as_str().to_string(),
-        u64::from(e.origin_server_ts.0) as i64,
-    );
-    let body = e.content.body.clone();
-    let url = match &e.content.source {
-        StickerMediaSource::Plain(url) => url.to_string(),
-        // Encrypted stickers (and future variants) cannot be represented as a
-        // plain mxc image here; skip them.
-        _ => return None,
-    };
-    let info = serde_json::to_value(&e.content.info).unwrap_or_else(|_| json!({}));
-    let content = json!({
-        "msgtype": "m.image",
-        "body": body,
-        "url": url,
-        "info": info,
-    });
-    Some(json!({
-        "type": "m.room.message",
-        "event_id": event_id,
-        "sender": sender,
-        "origin_server_ts": ts,
-        "room_id": room_id,
-        "content": content,
-    }))
 }
 
 #[cfg(test)]

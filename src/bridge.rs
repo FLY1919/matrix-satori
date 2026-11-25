@@ -4,7 +4,7 @@ use crate::config::Config;
 use crate::element::{html_escape_attr, matrix_to_satori};
 use crate::matrix::{EventInfo, MatrixClient, SyncResponse};
 use crate::satori::{Channel, Event, EventLogin, Guild, Login, Message, User};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
@@ -30,6 +30,17 @@ pub struct Bridge {
     /// user_id -> (displayname, avatar http url). Filled lazily from profile
     /// lookups so events carry complete users (name/avatar), not bare ids.
     user_profiles: tokio::sync::RwLock<UserProfileCache>,
+    /// Recently dispatched event ids. The SDK fires both a timeline handler
+    /// and a state handler, and a state event that also appears in the
+    /// timeline would otherwise be delivered twice. Bounded set keeps memory
+    /// flat; an id older than the window may re-fire only after eviction.
+    recent_events: tokio::sync::RwLock<std::collections::HashSet<String>>,
+    /// reaction event id -> (target event id, emoji key, sender). Used to turn
+    /// an m.room.redaction of a reaction into `reaction-removed` instead of
+    /// `message-deleted`.
+    reactions: tokio::sync::RwLock<HashMap<String, (String, String, String)>>,
+    /// room_id -> last known pinned event id list, for diffing pin/unpin.
+    pinned: tokio::sync::RwLock<HashMap<String, Vec<String>>>,
 }
 
 impl Bridge {
@@ -147,6 +158,9 @@ impl Bridge {
             sn: AtomicI64::new(0),
             room_names: tokio::sync::RwLock::new(HashMap::new()),
             user_profiles: tokio::sync::RwLock::new(HashMap::new()),
+            recent_events: tokio::sync::RwLock::new(std::collections::HashSet::new()),
+            reactions: tokio::sync::RwLock::new(HashMap::new()),
+            pinned: tokio::sync::RwLock::new(HashMap::new()),
         }
     }
 
@@ -272,13 +286,35 @@ impl Bridge {
     /// is the sole event entry point now — the SDK is the only sync engine.
     pub(crate) async fn handle_event_json(&self, room_id: &str, ev: &Value) {
         let info = EventInfo::from_value(ev);
+        // De-duplicate: a state event present in both the timeline and the
+        // state handler (or replayed after a reconnect) must fire once.
+        if !info.event_id.is_empty() {
+            let mut seen = self.recent_events.write().await;
+            if !seen.insert(info.event_id.clone()) {
+                return;
+            }
+            // Bound memory: keep the most recent 4096 ids. Simple clear on
+            // overflow is fine — at that volume a replayed old id is unlikely.
+            if seen.len() > 4096 {
+                seen.clear();
+                seen.insert(info.event_id.clone());
+            }
+        }
         match info.event_type.as_str() {
             "m.room.message" => self.emit_message(room_id, &info).await,
+            "m.sticker" => {
+                // Stickers are message-like but not m.room.message. Convert to
+                // an m.image message so Satori sees them as `<img>` elements.
+                if let Some(msg) = sticker_to_message(&info) {
+                    self.emit_message(room_id, &msg).await;
+                }
+            }
             "m.reaction" => self.emit_reaction(room_id, &info).await,
             "m.room.member" => self.emit_membership(room_id, &info).await,
             "m.room.name" => self.emit_channel_update(room_id, &info).await,
             "m.room.topic" => {}
-            "m.room.redaction" => self.emit_message_deleted(room_id, &info).await,
+            "m.room.redaction" => self.emit_redaction(room_id, &info).await,
+            "m.room.pinned_events" => self.emit_pins(room_id, &info).await,
             "m.room.encrypted" => {
                 debug!("encrypted event {} not decrypted by SDK", info.event_id);
             }
@@ -478,6 +514,12 @@ impl Bridge {
         } else {
             now_ms()
         };
+        // remember this reaction so a later redaction can be reported as
+        // reaction-removed rather than message-deleted.
+        self.reactions.write().await.insert(
+            info.event_id.clone(),
+            (target.clone(), key.clone(), info.sender.clone()),
+        );
         let mut event = self.base_event("reaction-added", ts, Some(&user));
         event.channel = Some(channel);
         event.guild = guild;
@@ -496,11 +538,32 @@ impl Bridge {
             .and_then(Value::as_str)
             .unwrap_or("");
         let state_key = info.state_key.clone().unwrap_or_default();
+        // A join whose previous membership was also join is a profile change
+        // (displayname/avatar), not a new member — report it as -updated.
+        let prev_membership = info
+            .unsigned
+            .as_ref()
+            .and_then(|u| u.get("prev_content"))
+            .and_then(|p| p.get("membership"))
+            .and_then(Value::as_str);
+        let member_updated = membership == "join" && prev_membership == Some("join");
         let event_type = match membership {
+            "join" if member_updated => "guild-member-updated",
             "join" => "guild-member-added",
             "leave" | "ban" => "guild-member-removed",
             "invite" => "guild-member-request",
             _ => return,
+        };
+        // Bot's own join/leave is also a guild-added / guild-removed event.
+        let is_self = state_key == self.self_id;
+        let guild_event = if is_self && !member_updated {
+            match membership {
+                "join" => Some("guild-added"),
+                "leave" | "ban" => Some("guild-removed"),
+                _ => None,
+            }
+        } else {
+            None
         };
         // Membership events carry displayname/avatar directly in content.
         let mem_name = info
@@ -540,13 +603,24 @@ impl Bridge {
             position: None,
         });
         event.member = Some(crate::satori::GuildMember {
-            user: Some(user),
+            user: Some(user.clone()),
             name: mem_name,
             nick: None,
             avatar: mem_avatar,
             joined_at: None,
         });
         self.broadcast(event);
+
+        // Bot joined/left the guild itself.
+        if let Some(ge) = guild_event {
+            let mut gevent = self.base_event(ge, now_ms(), Some(&user));
+            gevent.guild = Some(Guild {
+                id: room_id.to_string(),
+                name: None,
+                avatar: None,
+            });
+            self.broadcast(gevent);
+        }
     }
 
     async fn emit_invite(&self, room_id: &str, _info: &EventInfo) {
@@ -572,13 +646,23 @@ impl Bridge {
                 .insert(room_id.to_string(), n.clone());
         }
         let (channel, guild) = self.room_meta(room_id).await;
-        let mut event = self.base_event("channel-updated", now_ms(), None);
-        event.channel = Some(channel);
-        event.guild = guild;
-        self.broadcast(event);
+        let ts = now_ms();
+        // Emit both: Koishi's EventMap defines `guild-updated` (a room rename
+        // is a guild update); `channel-updated` is kept for adapters that use
+        // the Genres×Actions naming. Same guild/channel resources either way.
+        let mut ev1 = self.base_event("channel-updated", ts, None);
+        ev1.channel = Some(channel.clone());
+        ev1.guild = guild.clone();
+        self.broadcast(ev1);
+        let mut ev2 = self.base_event("guild-updated", ts, None);
+        ev2.channel = Some(channel);
+        ev2.guild = guild;
+        self.broadcast(ev2);
     }
 
-    async fn emit_message_deleted(&self, room_id: &str, info: &EventInfo) {
+    /// A redaction is either a message deletion or a reaction removal. Check
+    /// our reaction cache for the redacted event id to tell them apart.
+    async fn emit_redaction(&self, room_id: &str, info: &EventInfo) {
         let redacts = info
             .content
             .get("redacts")
@@ -590,7 +674,33 @@ impl Bridge {
             .and_then(Value::as_str)
             .unwrap_or(info.event_id.as_str())
             .to_string();
+
+        // Was the redacted event a reaction we saw earlier?
+        let reaction = { self.reactions.read().await.get(&redacts).cloned() };
         let (channel, guild) = self.room_meta(room_id).await;
+        if let Some((target, key, sender)) = reaction {
+            self.reactions.write().await.remove(&redacts);
+            let user = User {
+                id: sender.clone(),
+                ..Default::default()
+            };
+            let ts = if info.origin_server_ts > 0 {
+                info.origin_server_ts
+            } else {
+                now_ms()
+            };
+            let mut event = self.base_event("reaction-removed", ts, Some(&user));
+            event.channel = Some(channel);
+            event.guild = guild;
+            event.message = Some(Message {
+                id: Some(target),
+                content: Some(key),
+                ..Default::default()
+            });
+            self.broadcast(event);
+            return;
+        }
+
         self.emit_event(
             "message-deleted",
             room_id,
@@ -604,6 +714,61 @@ impl Bridge {
             None,
         )
         .await;
+    }
+
+    /// Diff `m.room.pinned_events` against the last known list and emit one
+    /// `message-pinned` / `message-unpinned` per changed event id.
+    async fn emit_pins(&self, room_id: &str, info: &EventInfo) {
+        let current: Vec<String> = info
+            .content
+            .get("pinned")
+            .and_then(Value::as_array)
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let previous = {
+            self.pinned
+                .read()
+                .await
+                .get(room_id)
+                .cloned()
+                .unwrap_or_default()
+        };
+        self.pinned
+            .write()
+            .await
+            .insert(room_id.to_string(), current.clone());
+        let (channel, guild) = self.room_meta(room_id).await;
+        let ts = if info.origin_server_ts > 0 {
+            info.origin_server_ts
+        } else {
+            now_ms()
+        };
+        // newly pinned
+        for id in current.iter().filter(|id| !previous.contains(id)) {
+            let mut event = self.base_event("message-pinned", ts, None);
+            event.channel = Some(channel.clone());
+            event.guild = guild.clone();
+            event.message = Some(Message {
+                id: Some(id.clone()),
+                ..Default::default()
+            });
+            self.broadcast(event);
+        }
+        // newly unpinned
+        for id in previous.iter().filter(|id| !current.contains(id)) {
+            let mut event = self.base_event("message-unpinned", ts, None);
+            event.channel = Some(channel.clone());
+            event.guild = guild.clone();
+            event.message = Some(Message {
+                id: Some(id.clone()),
+                ..Default::default()
+            });
+            self.broadcast(event);
+        }
     }
 
     async fn emit_event(
@@ -693,6 +858,37 @@ impl Bridge {
             .map(|(k, v)| (k.clone(), Some(v.clone())))
             .collect()
     }
+}
+
+/// Convert an `m.sticker` wire event into an `m.room.message` `m.image` event
+/// so it flows through the normal message pipeline and becomes a Satori image
+/// element. Returns None when the sticker has no usable media URL (e.g. an
+/// encrypted sticker variant that the SDK could not resolve to a plain mxc).
+fn sticker_to_message(info: &EventInfo) -> Option<EventInfo> {
+    let content = &info.content;
+    // ruma 0.34 uses `url` for the plain media source; older shapes use
+    // `source.url`. Accept either.
+    let url = content.get("url").and_then(Value::as_str).or_else(|| {
+        content
+            .get("source")
+            .and_then(|s| s.get("url"))
+            .and_then(Value::as_str)
+    })?;
+    let body = content
+        .get("body")
+        .and_then(Value::as_str)
+        .unwrap_or("sticker");
+    let mut out = info.clone();
+    out.event_type = "m.room.message".to_string();
+    let mut c = serde_json::Map::new();
+    c.insert("msgtype".into(), json!("m.image"));
+    c.insert("body".into(), json!(body));
+    c.insert("url".into(), json!(url));
+    if let Some(img_info) = content.get("info") {
+        c.insert("info".into(), img_info.clone());
+    }
+    out.content = Value::Object(c);
+    Some(out)
 }
 
 fn now_ms() -> i64 {

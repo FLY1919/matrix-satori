@@ -197,6 +197,14 @@ pub const FEATURES: &[&str] = &[
     "reaction.delete",
     "reaction.clear",
     "reaction.list",
+    // Matrix-specific extensions (custom methods beyond the Satori standard).
+    "matrix.send_raw",
+    "matrix.get_state",
+    "matrix.get_state_event",
+    "matrix.power_levels",
+    "matrix.get_event",
+    "matrix.room_members",
+    "matrix.mxc_to_http",
 ];
 
 #[cfg(test)]

@@ -501,6 +501,87 @@ async fn dispatch(bridge: &Arc<Bridge>, method: &str, a: &Value, _q: &Option<Str
             Ok(json!([]))
         }
 
+        // --- Matrix-specific extension methods -------------------------------
+        // Satori allows adapters to expose custom methods beyond the standard
+        // set. These give Koishi plugins direct access to Matrix primitives
+        // that have no Satori equivalent. All take/return snake_case JSON.
+        "matrix.send_raw" => {
+            let room = s("channel_id")
+                .ok_or_else(|| (StatusCode::BAD_REQUEST, "channel_id required".to_string()))?;
+            let event_type = s("event_type")
+                .ok_or_else(|| (StatusCode::BAD_REQUEST, "event_type required".to_string()))?;
+            let content = a.get("content").cloned().unwrap_or_else(|| json!({}));
+            // Prefer the SDK (auto-encrypts in encrypted rooms); fall back to
+            // the raw HTTP send before the SDK is installed.
+            let event_id = match bridge.sdk_send_raw(room, event_type, &content).await {
+                Some(id) => id,
+                None => bridge
+                    .matrix
+                    .send_raw(room, event_type, &content)
+                    .await
+                    .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?,
+            };
+            Ok(json!({"event_id": event_id}))
+        }
+        "matrix.get_state" => {
+            let room = s("channel_id")
+                .ok_or_else(|| (StatusCode::BAD_REQUEST, "channel_id required".to_string()))?;
+            bridge
+                .matrix
+                .get_state(room)
+                .await
+                .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))
+        }
+        "matrix.get_state_event" => {
+            let room = s("channel_id")
+                .ok_or_else(|| (StatusCode::BAD_REQUEST, "channel_id required".to_string()))?;
+            let event_type = s("event_type")
+                .ok_or_else(|| (StatusCode::BAD_REQUEST, "event_type required".to_string()))?;
+            let state_key = s("state_key").unwrap_or("");
+            bridge
+                .matrix
+                .get_state_event(room, event_type, state_key)
+                .await
+                .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))
+        }
+        "matrix.power_levels" => {
+            let room = s("channel_id")
+                .ok_or_else(|| (StatusCode::BAD_REQUEST, "channel_id required".to_string()))?;
+            // A room's power levels are the state event with type
+            // `m.room.power_levels` and an empty state key.
+            bridge
+                .matrix
+                .get_state_event(room, "m.room.power_levels", "")
+                .await
+                .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))
+        }
+        "matrix.get_event" => {
+            let room = s("channel_id")
+                .ok_or_else(|| (StatusCode::BAD_REQUEST, "channel_id required".to_string()))?;
+            let event_id = s("event_id")
+                .ok_or_else(|| (StatusCode::BAD_REQUEST, "event_id required".to_string()))?;
+            bridge
+                .matrix
+                .get_event(room, event_id)
+                .await
+                .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))
+        }
+        "matrix.room_members" => {
+            let room = s("channel_id")
+                .ok_or_else(|| (StatusCode::BAD_REQUEST, "channel_id required".to_string()))?;
+            let ids = bridge
+                .matrix
+                .room_members(room)
+                .await
+                .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+            Ok(json!({"data": ids}))
+        }
+        "matrix.mxc_to_http" => {
+            let mxc =
+                s("mxc").ok_or_else(|| (StatusCode::BAD_REQUEST, "mxc required".to_string()))?;
+            Ok(json!({"url": bridge.config.mxc_to_http(mxc)}))
+        }
+
         // --- Matrix has no direct equivalents for the following. Return
         // protocol-correct empty/success values instead of a 404 so Koishi
         // adapters never break on an unsupported call. ---
