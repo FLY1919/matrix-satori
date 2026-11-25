@@ -11,6 +11,39 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 use tracing::debug;
 
+use matrix_sdk::ruma::events::key::verification::VerificationMethod;
+use matrix_sdk::ruma::UserId;
+
+/// Grab the installed SDK client or a well-formed API error.
+fn sdk(bridge: &Arc<Bridge>) -> Result<&matrix_sdk::Client, (StatusCode, String)> {
+    bridge.sdk_client().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            "SDK client not ready".to_string(),
+        )
+    })
+}
+
+/// Turn a verification flow id plus a user id into the SDK's high-level
+/// VerificationRequest. Flow ids created by us are `<user>/<transaction>`; the
+/// tracker stores the plain flow id, so we also try the current user.
+async fn verification_request(
+    client: &matrix_sdk::Client,
+    user_id: &UserId,
+    flow_id: &str,
+) -> Result<matrix_sdk::encryption::verification::VerificationRequest, (StatusCode, String)> {
+    client
+        .encryption()
+        .get_verification_request(user_id, flow_id)
+        .await
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                format!("verification '{}' not found", flow_id),
+            )
+        })
+}
+
 fn authorized(headers: &HeaderMap, token: &str) -> bool {
     if token.is_empty() {
         return true;
@@ -580,6 +613,278 @@ async fn dispatch(bridge: &Arc<Bridge>, method: &str, a: &Value, _q: &Option<Str
             let mxc =
                 s("mxc").ok_or_else(|| (StatusCode::BAD_REQUEST, "mxc required".to_string()))?;
             Ok(json!({"url": bridge.config.mxc_to_http(mxc)}))
+        }
+
+        // --- Device verification (SAS) --------------------------------------
+        // Matrix has no Satori equivalent. These drive the SDK crypto machine
+        // so a second (unverified) device such as our `satori` device can be
+        // cross-signed by an existing verified device. Once cross-signed, the
+        // SDK automatically shares room keys / backup secrets with us via
+        // to-device `m.secret.send`, which fixes "Can't find room key" in
+        // encrypted rooms. All methods take/return snake_case JSON.
+
+        // Overall verification state of our own device.
+        "matrix.verify.status" => {
+            let client = sdk(bridge)?;
+            let enc = client.encryption();
+            let own = match enc.get_own_device().await {
+                Ok(d) => d,
+                Err(e) => return Err((StatusCode::BAD_GATEWAY, e.to_string())),
+            };
+            let state = match own {
+                Some(d) => json!({
+                    "device_id": d.device_id().as_str(),
+                    "cross_signed_by_owner": d.is_cross_signed_by_owner(),
+                    "verified": d.is_verified(),
+                    "display_name": d.display_name(),
+                }),
+                None => {
+                    json!({"device_id": null, "cross_signed_by_owner": false, "verified": false})
+                }
+            };
+            Ok(json!({
+                "device": state,
+                "verification_state": format!("{:?}", enc.verification_state().get()),
+            }))
+        }
+
+        // List devices of a user (default: ourselves), with verification flags.
+        // This is the authoritative source — unlike our to-device tracker it
+        // comes straight from the crypto store.
+        "matrix.devices.list" => {
+            let client = sdk(bridge)?;
+            let user_id = s("user_id").unwrap_or(&bridge.self_id);
+            let uid = UserId::parse(user_id)
+                .map_err(|e| (StatusCode::BAD_REQUEST, format!("invalid user_id: {}", e)))?;
+            let devices = client
+                .encryption()
+                .get_user_devices(&uid)
+                .await
+                .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+            let list: Vec<Value> = devices
+                .devices()
+                .map(|d| {
+                    json!({
+                        "device_id": d.device_id().as_str(),
+                        "display_name": d.display_name(),
+                        "cross_signed_by_owner": d.is_cross_signed_by_owner(),
+                        "verified": d.is_verified(),
+                        "is_our_own": d.device_id().as_str() == client.device_id().map(|x| x.as_str()).unwrap_or(""),
+                    })
+                })
+                .collect();
+            Ok(json!({"data": list}))
+        }
+
+        // Verification requests we learned from the to-device stream.
+        "matrix.verify.list" => Ok(json!({"data": bridge.verify_requests().await})),
+
+        // Resolve the user id for a flow: explicit arg > tracker > ourselves.
+        // The tracker is only a hint; self-verification is the dominant case.
+        "matrix.verify.request" => {
+            let client = sdk(bridge)?;
+            let device_id = s("device_id")
+                .ok_or_else(|| (StatusCode::BAD_REQUEST, "device_id required".to_string()))?;
+            let user_id = s("user_id").unwrap_or(&bridge.self_id);
+            let uid = UserId::parse(user_id)
+                .map_err(|e| (StatusCode::BAD_REQUEST, format!("invalid user_id: {}", e)))?;
+            let did: &matrix_sdk::ruma::DeviceId = device_id.into();
+            let device = client
+                .encryption()
+                .get_device(&uid, did)
+                .await
+                .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?
+                .ok_or_else(|| (StatusCode::NOT_FOUND, "device not found".to_string()))?;
+            let req = device
+                .request_verification_with_methods(vec![VerificationMethod::SasV1])
+                .await
+                .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+            let flow_id = req.flow_id().to_string();
+            bridge
+                .note_verify_request(&flow_id, user_id, device_id, &["m.sas.v1".into()])
+                .await;
+            Ok(json!({"flow_id": flow_id, "user_id": user_id, "device_id": device_id}))
+        }
+
+        "matrix.verify.accept" => {
+            let client = sdk(bridge)?;
+            let flow_id = s("flow_id")
+                .ok_or_else(|| (StatusCode::BAD_REQUEST, "flow_id required".to_string()))?;
+            let user_id = s("user_id").unwrap_or(&bridge.self_id);
+            let uid = UserId::parse(user_id)
+                .map_err(|e| (StatusCode::BAD_REQUEST, format!("invalid user_id: {}", e)))?;
+            let req = verification_request(client, &uid, flow_id).await?;
+            req.accept()
+                .await
+                .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+            Ok(json!({"flow_id": flow_id, "accepted": true}))
+        }
+
+        "matrix.verify.start_sas" => {
+            let client = sdk(bridge)?;
+            let flow_id = s("flow_id")
+                .ok_or_else(|| (StatusCode::BAD_REQUEST, "flow_id required".to_string()))?;
+            let user_id = s("user_id").unwrap_or(&bridge.self_id);
+            let uid = UserId::parse(user_id)
+                .map_err(|e| (StatusCode::BAD_REQUEST, format!("invalid user_id: {}", e)))?;
+            let req = verification_request(client, &uid, flow_id).await?;
+            match req
+                .start_sas()
+                .await
+                .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?
+            {
+                Some(_) => Ok(json!({"flow_id": flow_id, "started": true})),
+                None => Ok(json!({"flow_id": flow_id, "started": false,
+                    "error": "SAS not supported by the other device"})),
+            }
+        }
+
+        // Read the short authentication string. Emojis are exposed as both
+        // symbol+description pairs and the concatenated display string.
+        "matrix.verify.sas_info" => {
+            let client = sdk(bridge)?;
+            let flow_id = s("flow_id")
+                .ok_or_else(|| (StatusCode::BAD_REQUEST, "flow_id required".to_string()))?;
+            let user_id = s("user_id").unwrap_or(&bridge.self_id);
+            let uid = UserId::parse(user_id)
+                .map_err(|e| (StatusCode::BAD_REQUEST, format!("invalid user_id: {}", e)))?;
+            let v = client
+                .encryption()
+                .get_verification(&uid, flow_id)
+                .await
+                .ok_or_else(|| {
+                    (
+                        StatusCode::NOT_FOUND,
+                        format!("verification '{}' not found", flow_id),
+                    )
+                })?;
+            let sas = v.sas().ok_or_else(|| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    "not a SAS verification".to_string(),
+                )
+            })?;
+            let emojis: Vec<Value> = sas
+                .emoji()
+                .map(|arr| {
+                    arr.iter()
+                        .map(|e| json!({"symbol": e.symbol, "description": e.description}))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let display = sas
+                .emoji()
+                .map(|arr| arr.iter().map(|e| e.symbol).collect::<Vec<_>>().join(" "))
+                .unwrap_or_default();
+            let decimals = sas.decimals().map(|(a, b, c)| json!([a, b, c]));
+            Ok(json!({
+                "flow_id": flow_id,
+                "state": format!("{:?}", sas.state()),
+                "emojis": emojis,
+                "emoji_display": display,
+                "decimals": decimals,
+                "supports_emoji": sas.supports_emoji(),
+                "is_done": sas.is_done(),
+                "is_cancelled": sas.is_cancelled(),
+            }))
+        }
+
+        // Confirm the emoji/decimals match on both screens. The SDK will sign
+        // the other device and upload the signature; secrets then flow in.
+        "matrix.verify.confirm" => {
+            let client = sdk(bridge)?;
+            let flow_id = s("flow_id")
+                .ok_or_else(|| (StatusCode::BAD_REQUEST, "flow_id required".to_string()))?;
+            let user_id = s("user_id").unwrap_or(&bridge.self_id);
+            let uid = UserId::parse(user_id)
+                .map_err(|e| (StatusCode::BAD_REQUEST, format!("invalid user_id: {}", e)))?;
+            let v = client
+                .encryption()
+                .get_verification(&uid, flow_id)
+                .await
+                .ok_or_else(|| {
+                    (
+                        StatusCode::NOT_FOUND,
+                        format!("verification '{}' not found", flow_id),
+                    )
+                })?;
+            let sas = v.sas().ok_or_else(|| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    "not a SAS verification".to_string(),
+                )
+            })?;
+            sas.confirm()
+                .await
+                .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+            bridge.forget_verify_request(flow_id).await;
+            Ok(json!({"flow_id": flow_id, "confirmed": true}))
+        }
+
+        "matrix.verify.mismatch" => {
+            let client = sdk(bridge)?;
+            let flow_id = s("flow_id")
+                .ok_or_else(|| (StatusCode::BAD_REQUEST, "flow_id required".to_string()))?;
+            let user_id = s("user_id").unwrap_or(&bridge.self_id);
+            let uid = UserId::parse(user_id)
+                .map_err(|e| (StatusCode::BAD_REQUEST, format!("invalid user_id: {}", e)))?;
+            let v = client
+                .encryption()
+                .get_verification(&uid, flow_id)
+                .await
+                .ok_or_else(|| {
+                    (
+                        StatusCode::NOT_FOUND,
+                        format!("verification '{}' not found", flow_id),
+                    )
+                })?;
+            let sas = v.sas().ok_or_else(|| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    "not a SAS verification".to_string(),
+                )
+            })?;
+            sas.mismatch()
+                .await
+                .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+            bridge.forget_verify_request(flow_id).await;
+            Ok(json!({"flow_id": flow_id, "mismatched": true}))
+        }
+
+        "matrix.verify.cancel" => {
+            let client = sdk(bridge)?;
+            let flow_id = s("flow_id")
+                .ok_or_else(|| (StatusCode::BAD_REQUEST, "flow_id required".to_string()))?;
+            let user_id = s("user_id").unwrap_or(&bridge.self_id);
+            let uid = UserId::parse(user_id)
+                .map_err(|e| (StatusCode::BAD_REQUEST, format!("invalid user_id: {}", e)))?;
+            if let Some(req) = client
+                .encryption()
+                .get_verification_request(&uid, flow_id)
+                .await
+            {
+                req.cancel()
+                    .await
+                    .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+            } else if let Some(v) = client.encryption().get_verification(&uid, flow_id).await {
+                if let Some(sas) = v.sas() {
+                    sas.cancel()
+                        .await
+                        .map_err(|e| (StatusCode::BAD_GATEWAY, e.to_string()))?;
+                } else {
+                    return Err((
+                        StatusCode::BAD_REQUEST,
+                        "unsupported verification type".to_string(),
+                    ));
+                }
+            } else {
+                return Err((
+                    StatusCode::NOT_FOUND,
+                    format!("verification '{}' not found", flow_id),
+                ));
+            }
+            bridge.forget_verify_request(flow_id).await;
+            Ok(json!({"flow_id": flow_id, "cancelled": true}))
         }
 
         // --- Matrix has no direct equivalents for the following. Return

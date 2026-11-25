@@ -205,6 +205,16 @@ pub const FEATURES: &[&str] = &[
     "matrix.get_event",
     "matrix.room_members",
     "matrix.mxc_to_http",
+    "matrix.verify.status",
+    "matrix.devices.list",
+    "matrix.verify.list",
+    "matrix.verify.request",
+    "matrix.verify.accept",
+    "matrix.verify.start_sas",
+    "matrix.verify.sas_info",
+    "matrix.verify.confirm",
+    "matrix.verify.mismatch",
+    "matrix.verify.cancel",
 ];
 
 #[cfg(test)]

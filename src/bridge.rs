@@ -41,6 +41,11 @@ pub struct Bridge {
     reactions: tokio::sync::RwLock<HashMap<String, (String, String, String)>>,
     /// room_id -> last known pinned event id list, for diffing pin/unpin.
     pinned: tokio::sync::RwLock<HashMap<String, Vec<String>>>,
+    /// In-flight key-verification requests learned from to-device events.
+    /// The SDK crypto machine consumes the actual flows, but its high-level
+    /// API cannot enumerate requests by flow id, so we remember just enough
+    /// (flow_id / from_user / from_device) here to drive them via Satori calls.
+    verify_requests: tokio::sync::RwLock<Vec<Value>>,
 }
 
 impl Bridge {
@@ -93,6 +98,56 @@ impl Bridge {
             .await
             .insert(user_id.to_string(), (name.clone(), avatar.clone()));
         (name, avatar)
+    }
+
+    /// Remember a key-verification request seen on the to-device stream and
+    /// surface it to Koishi as a Satori event so the bot can drive the SAS flow
+    /// through the `matrix.verify.*` methods. Duplicate flow ids are ignored.
+    pub(crate) async fn note_verify_request(
+        &self,
+        flow_id: &str,
+        from_user: &str,
+        from_device: &str,
+        methods: &[String],
+    ) {
+        let mut list = self.verify_requests.write().await;
+        if list.iter().any(|v| v["flow_id"].as_str() == Some(flow_id)) {
+            return;
+        }
+        let entry = json!({
+            "flow_id": flow_id,
+            "from_user": from_user,
+            "from_device": from_device,
+            "methods": methods,
+        });
+        list.push(entry.clone());
+        drop(list);
+
+        let mut event = self.base_event("verification-request", now_ms(), None);
+        // Reuse the message slot to carry the request details as a JSON string
+        // so Koishi plugins that don't know this custom event simply ignore it.
+        event.user = Some(User {
+            id: from_user.to_string(),
+            name: Some(from_device.to_string()),
+            ..Default::default()
+        });
+        event.message = Some(Message {
+            id: Some(flow_id.to_string()),
+            content: Some(entry.to_string()),
+            ..Default::default()
+        });
+        self.broadcast(event);
+    }
+
+    /// Snapshot of in-flight verification requests.
+    pub(crate) async fn verify_requests(&self) -> Vec<Value> {
+        self.verify_requests.read().await.clone()
+    }
+
+    /// Drop a verification request from the tracker once it is done/cancelled.
+    pub(crate) async fn forget_verify_request(&self, flow_id: &str) {
+        let mut list = self.verify_requests.write().await;
+        list.retain(|v| v["flow_id"].as_str() != Some(flow_id));
     }
 }
 
@@ -161,6 +216,7 @@ impl Bridge {
             recent_events: tokio::sync::RwLock::new(std::collections::HashSet::new()),
             reactions: tokio::sync::RwLock::new(HashMap::new()),
             pinned: tokio::sync::RwLock::new(HashMap::new()),
+            verify_requests: tokio::sync::RwLock::new(Vec::new()),
         }
     }
 

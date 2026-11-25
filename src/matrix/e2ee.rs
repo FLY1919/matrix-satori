@@ -19,7 +19,7 @@ use crate::config::Config;
 use matrix_sdk::authentication::matrix::MatrixSession;
 use matrix_sdk::config::SyncSettings;
 use matrix_sdk::event_handler::Ctx;
-use matrix_sdk::ruma::events::{AnySyncStateEvent, AnySyncTimelineEvent};
+use matrix_sdk::ruma::events::{AnySyncStateEvent, AnySyncTimelineEvent, AnyToDeviceEvent};
 use matrix_sdk::ruma::serde::Raw;
 use matrix_sdk::ruma::{OwnedDeviceId, OwnedUserId};
 use matrix_sdk::{Client, Room, SessionMeta, SessionTokens};
@@ -130,6 +130,37 @@ pub async fn start(
                     obj.insert("room_id".into(), json!(room_id));
                 }
                 bridge.handle_event_json(room_id, &v).await;
+            }
+        },
+    );
+
+    // Key-verification requests arrive on the to-device stream (never in a
+    // room timeline). The SDK crypto machine consumes these to build its own
+    // VerificationRequest objects; this read-only handler just learns the
+    // flow_id so Koishi can drive the SAS flow via `matrix.verify.*` calls.
+    // It must not mutate the request — only observe and announce it.
+    client.add_event_handler(
+        |event: AnyToDeviceEvent, bridge: Ctx<Arc<Bridge>>| async move {
+            if let AnyToDeviceEvent::KeyVerificationRequest(ev) = &event {
+                let flow_id = ev.content.transaction_id.as_str();
+                let methods: Vec<String> = ev
+                    .content
+                    .methods
+                    .iter()
+                    .map(|m| {
+                        serde_json::to_value(m)
+                            .map(|v| v.as_str().unwrap_or("").to_string())
+                            .unwrap_or_default()
+                    })
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                // The request to-device event carries the sender user but not
+                // its device id; `matrix.verify.list` enriches it from the
+                // crypto VerificationRequest later. Use the sender as a stable
+                // placeholder here.
+                bridge
+                    .note_verify_request(flow_id, ev.sender.as_str(), "", &methods)
+                    .await;
             }
         },
     );

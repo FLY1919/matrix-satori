@@ -1481,3 +1481,52 @@ async fn matrix_specific_api_methods_work() {
 
     let _ = mp;
 }
+
+/// Verification methods need an installed SDK client (crypto machine). In the
+/// HTTP-only test harness there is none, so they must fail cleanly with 503
+/// rather than panicking or returning a 500. This also proves the routes are
+/// wired up and reach the dispatch branch.
+#[tokio::test]
+async fn verify_api_degrades_cleanly_without_sdk() {
+    let mock = Arc::new(MockState {
+        syncs: vec![json!({"next_batch":"s0","rooms":{"join":{}}})],
+        ..Default::default()
+    });
+    let (_mp, sp) = spawn_server(mock.clone(), |b, _| build_router(b, "")).await;
+    let client = reqwest::Client::new();
+    for method in [
+        "matrix.verify.status",
+        "matrix.devices.list",
+        "matrix.verify.list",
+        "matrix.verify.request",
+        "matrix.verify.accept",
+        "matrix.verify.start_sas",
+        "matrix.verify.sas_info",
+        "matrix.verify.confirm",
+        "matrix.verify.mismatch",
+        "matrix.verify.cancel",
+    ] {
+        let url = format!("http://127.0.0.1:{}/v1/{}", sp, method);
+        let body = json!({"flow_id":"f","device_id":"D","user_id":"@u:s"});
+        let resp = client
+            .post(&url)
+            .bearer_auth("satori-secret")
+            .json(&body)
+            .send()
+            .await
+            .unwrap();
+        // verify.list does not need the SDK, so it succeeds; the rest need crypto.
+        if method == "matrix.verify.list" {
+            assert_eq!(resp.status(), 200, "{} should work without SDK", method);
+            let v: Value = resp.json().await.unwrap();
+            assert!(v["data"].is_array());
+        } else {
+            assert_eq!(
+                resp.status(),
+                503,
+                "{} should return 503 without SDK",
+                method
+            );
+        }
+    }
+}

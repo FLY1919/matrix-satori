@@ -64,6 +64,17 @@ const METHODS: &[&str] = &[
     "matrix.get_event",
     "matrix.room_members",
     "matrix.mxc_to_http",
+    // Device verification (SAS): drive cross-signing from Koishi/CLI.
+    "matrix.verify.status",
+    "matrix.devices.list",
+    "matrix.verify.list",
+    "matrix.verify.request",
+    "matrix.verify.accept",
+    "matrix.verify.start_sas",
+    "matrix.verify.sas_info",
+    "matrix.verify.confirm",
+    "matrix.verify.mismatch",
+    "matrix.verify.cancel",
 ];
 
 pub fn build_router(bridge: Arc<Bridge>, prefix: &str) -> Router {
@@ -197,4 +208,37 @@ pub async fn init_bridge(config: Config) -> anyhow::Result<(Arc<Bridge>, Arc<Con
         Arc::new(Bridge::new(matrix, config.clone(), user_id, profile)),
         config,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::METHODS;
+    use crate::satori::FEATURES;
+
+    /// The Matrix verification extensions must be both registered as routes
+    /// and advertised in FEATURES, otherwise Koishi hides them behind its
+    /// capability check and the SAS device-linking flow is unreachable.
+    #[test]
+    fn verification_methods_are_registered() {
+        let verify = [
+            "matrix.verify.status",
+            "matrix.devices.list",
+            "matrix.verify.list",
+            "matrix.verify.request",
+            "matrix.verify.accept",
+            "matrix.verify.start_sas",
+            "matrix.verify.sas_info",
+            "matrix.verify.confirm",
+            "matrix.verify.mismatch",
+            "matrix.verify.cancel",
+        ];
+        for m in verify {
+            assert!(METHODS.contains(&m), "verify method not registered: {}", m);
+            assert!(
+                FEATURES.contains(&m),
+                "verify method not in FEATURES: {}",
+                m
+            );
+        }
+    }
 }
