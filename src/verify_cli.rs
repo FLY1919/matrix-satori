@@ -219,7 +219,10 @@ async fn execute(session: &Session, cmd: VerifyCommand) -> anyhow::Result<()> {
                 .get_user_devices(&uid)
                 .await
                 .map_err(|e| anyhow::anyhow!("get_user_devices: {}", e))?;
-            let own_device = client.device_id().map(|d| d.to_string()).unwrap_or_default();
+            let own_device = client
+                .device_id()
+                .map(|d| d.to_string())
+                .unwrap_or_default();
             let list: Vec<Value> = devices
                 .devices()
                 .map(|d| {
