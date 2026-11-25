@@ -59,9 +59,29 @@ Koishi (adapter-satori)  ──WebSocket/HTTP──▶  matrix-satori  ──Mat
 
 **设备名**：Element 等设备列表里显示的"Unknown device"是设备的 `display_name`，和 `device_id`（登录标识）是两回事。程序启动后会用 `--device-display-name`（默认 `satori`）通过官方 `PUT /devices/{deviceId}` 给当前设备改名，这样设备列表里就是一个固定可辨的名字。改名只是显示名，**不等于设备验证/cross-sign 信任**——加密Rooms 能否解密仍取决于设备是否被信任或有密钥备份。若登录方式没有 device_id（access-token / appservice），自动跳过。
 
+**设备验证（SAS / cross-signing）**：新设备默认"未验证"，其他客户端不会给它分发 room key，日志里会出现 `Can't find the room key`。用下面任一方式把本设备加入 cross-sign 信任链后，对方会通过 `m.secret.send` 自动推送 room key 和备份密钥，加密消息即可解密：
+
+- **有恢复密钥（EsT 开头）**：最省事。在 Element/FluffyChat 里用恢复密钥把本设备验证一次即可；程序侧也可扩展自动 `recovery().recover(key)`（当前需手动在客户端完成一次）。
+- **无恢复密钥（SAS emoji 验证）**：v0.2.8 起内置 10 个 `matrix.verify.*` 方法，用 Koishi 或 `curl` 驱动：
+
+  ```sh
+  # 1. 看本设备验证状态与所有设备（找到已验证的那台 device_id）
+  curl -s -H 'Authorization: Bearer <SATORI_TOKEN>' -X POST http://127.0.0.1:5140/v1/matrix.devices.list -d '{}'
+  # 2. 从本设备向你已验证的手机/网页设备发起 SAS（记下 flow_id）
+  curl -s -H 'Authorization: Bearer <SATORI_TOKEN>' -X POST http://127.0.0.1:5140/v1/matrix.verify.request \
+    -d '{"device_id":"<已验证设备的device_id>"}'
+  # 3. 对方客户端接受后，读取 emoji（两边屏幕上的 7 个 emoji 应一致）
+  curl -s -H 'Authorization: Bearer <SATORI_TOKEN>' -X POST http://127.0.0.1:5140/v1/matrix.verify.sas_info -d '{"flow_id":"<flow_id>"}'
+  # 4. 比对一致 → 确认；对方也确认后本设备即被 cross-sign
+  curl -s -H 'Authorization: Bearer <SATORI_TOKEN>' -X POST http://127.0.0.1:5140/v1/matrix.verify.confirm -d '{"flow_id":"<flow_id>"}'
+  ```
+
+  若对方主动发起验证，程序会推一个 `verification-request` 事件（content 里带 flow_id），用 `matrix.verify.list` 也能看到，然后走 `accept → start_sas → sas_info → confirm`。不一致时用 `matrix.verify.mismatch` 中止。
+
+**Matrix 有 WebSocket 吗？**：没有。官方 Client-Server API 基线是 HTTP 长轮询 `/sync`，sliding sync（MSC4186）也是 HTTP；规范把"更高效传输"留作未来可选扩展，至今无 WS 传输。本程序对 Koishi 侧是 Satori WebSocket（`/v1/events`），对 Matrix 侧走官方 SDK 的 HTTP sync。
+
 **限制**：
-- **历史消息**：Matrix 密钥与设备绑定，本设备创建**之前**发送的加密消息无法解密（需要 cross-signing / 密钥备份恢复，未实现）。从本次登录起、对方重新分发的消息可解。
-- 未做跨设备验证（cross-signing / emoji 验证），默认接受未验证设备的消息（能解密，但不做信任校验）。
+- **历史消息**：Matrix 密钥与设备绑定。设备验证（上面）后，对方会推送 key，可解验证后新分发的历史；更早的、没有任何在线设备愿意重发的消息仍可能解不开，需密钥备份恢复。
 
 ### 关于 SSO 登录（mozilla.modular.im 这类）
 
@@ -298,7 +318,7 @@ sync_timeout = 30000
 
 ## 已验证 / 限制
 
-- **46 个测试全部通过**：单元（元素解析 / 登录名 / TOML 配置自动创建·读取·CLI 覆盖 / E2EE 可用性判断）+ 9 登录方式集成（password / token / appservice / access-token / auto / flows 探测 / 凭据缓存）+ 6 服务端集成（WS READY、事件推送、PING-PONG、message.create 调用链、鉴权、reaction / channel / upload API、全方法非 404）。登录测试用 mock homeserver 验证真实 HTTP 交互。
+- **79 个测试全部通过**：单元（元素解析 / 登录名 / TOML 配置自动创建·读取·CLI 覆盖 / E2EE 可用性判断 / 方法注册一致性）+ 9 登录方式集成（password / token / appservice / access-token / auto / flows 探测 / 凭据缓存）+ 18 服务端集成（WS READY、事件推送、PING-PONG、message.create 调用链、鉴权、全 Satori 元素、全事件集、Matrix 特有 API、验证 API 降级、reaction / channel / upload）。登录测试用 mock homeserver 验证真实 HTTP 交互。
 - **单一 SDK 收发 + E2EE 已支持**：基于官方 `matrix-sdk` 用 `restore_session` 复用登录设备，全局只有一条连接，收消息和发消息都走它（加密房间自动加/解密，同一条消息只推一次）；SSO / password / token / auto 均可用，密钥经 SQLite 持久化、重启后仍可解密。启用条件、设备独占要求与历史消息限制见上方「加密房间（E2EE）与收发架构」章节。
 - 反应删除（`reaction.delete/clear`）需要 Matrix 侧的反应事件 ID，而 Satori 该 action 不带，目前是空操作。
 
