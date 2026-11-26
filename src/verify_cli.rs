@@ -14,9 +14,13 @@
 //!   matrix-satori verify                 # no subcommand -> interactive REPL
 //!   verify> devices
 //!   verify> request --device <other-device-id>
+//!   verify> start-sas --flow <flow-id>   # after the other device accepts
 //!   verify> sas --flow <flow-id>         # compare these emoji with the other screen
 //!   verify> confirm --flow <flow-id>
 //!   verify> status                        # cross_signed_by_owner = true
+//!
+//! The REPL runs a background sync loop so to-device events (ready / accept /
+//! key / mac) are consumed as they arrive, not only while a command is running.
 //!
 //! Single-shot subcommands (`matrix-satori verify status`, `... devices`) are
 //! still accepted for stateless queries. Stateful SAS steps should use the REPL.
@@ -281,7 +285,13 @@ async fn execute(session: &Session, cmd: VerifyCommand) -> anyhow::Result<()> {
             let flow = req.flow_id().to_string();
             pump(client, 2).await;
             print_json(
-                "verification request sent. On the other device accept it, then run `sas --flow <id>`:",
+                &format!(
+                    "verification request sent. Now: (1) on device {} ACCEPT the popup; \
+                     (2) here run `start-sas --flow {}`; (3) run `sas --flow {}` and compare \
+                     emoji with the other screen; (4) if equal run `confirm --flow {}` \
+                     (on the other device tap Match too).",
+                    device, flow, flow, flow
+                ),
                 &json!({"flow": flow, "user_id": uid.as_str(), "device": device}),
             );
         }
@@ -475,6 +485,26 @@ async fn repl(session: Session) -> anyhow::Result<()> {
     );
     print_help();
 
+    // SAS advances purely on to-device events (m.key.verification.ready /
+    // accept / start / key / mac). Only pumping inside a command leaves long
+    // gaps where the peer's events sit unconsumed, so the state machine looks
+    // stuck (" waiting for the other device"). Keep one sync loop alive for
+    // the whole REPL; commands then just read the already-advanced state.
+    let bg_client = session.client.clone();
+    let bg_sync = tokio::spawn(async move {
+        loop {
+            match bg_client.sync(SyncSettings::default()).await {
+                Ok(_) => break, // sync() only returns on cancellation
+                Err(e) => {
+                    // keys/upload 400s and transient network errors are common;
+                    // back off briefly and keep the loop alive.
+                    tracing::debug!("verify background sync: {}", e);
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                }
+            }
+        }
+    });
+
     let stdin = tokio::io::stdin();
     let mut reader = BufReader::new(stdin);
     let mut line = String::new();
@@ -513,6 +543,7 @@ async fn repl(session: Session) -> anyhow::Result<()> {
             }
         }
     }
+    bg_sync.abort();
     Ok(())
 }
 

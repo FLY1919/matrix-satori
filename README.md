@@ -70,12 +70,15 @@ Koishi (adapter-satori)  ──WebSocket/HTTP──▶  matrix-satori  ──Mat
   verify> devices                              # 列出所有设备及 device_id、是否 verified
   verify> request --device <已验证设备的device_id>   # 发起 SAS，记下输出的 flow
   # 在手机/网页客户端点"接受验证"
+  verify> start-sas --flow <flow>              # 对方接受后，发起方启动 SAS 交换（关键一步，别跳过）
   verify> sas --flow <flow>                    # 终端打印 7 个 emoji + 数字；和对方屏幕比对
   verify> confirm --flow <flow>                # 一致就确认；对方也确认后即被 cross-sign
   verify> status                               # cross_signed_by_owner = true
   ```
 
-  也可用 `help` 看全部命令（accept/start-sas/mismatch/cancel/list/quit）。不一致用 `mismatch --flow`，想中止用 `cancel --flow`。
+  也可用 `help` 看全部命令（accept/start-sas/mismatch/cancel/list/quit）。不一致用 `mismatch --flow`，想中止用 `cancel --flow`。REPL 全程在后台持续 sync，对方的 ready/accept/key 事件一到就自动推进 SAS 状态，不用卡着等。
+
+  > 若跳过 `start-sas` 直接 `sas`，会一直显示"等待对方接受/字符串尚未生成"——因为 SAS 交换还没启动。务必按 `request →（对方接受）→ start-sas → sas → confirm` 的顺序。v0.2.10 起 `request` 的输出提示已写全这几步。
 
   > SAS 状态只在 SDK 客户端内存中存活，所以**完整流程必须在同一个 `verify` REPL 会话里走完**。像 `matrix-satori verify status`、`verify devices` 这种无状态查询可以带子命令一次执行完。
 
