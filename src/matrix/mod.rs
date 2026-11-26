@@ -450,27 +450,41 @@ impl MatrixClient {
 
     /// Download an arbitrary http(s) URL, returning (content_type, bytes).
     /// Used to fetch remote media before uploading into Matrix storage.
+    /// Download an arbitrary remote media URL with a short, dedicated timeout.
+    /// The shared HTTP client has a long timeout (sync long-poll), which made a
+    /// single anti-hotlink / stalled external link block a message for up to
+    /// sync_timeout+15s. Media fetches must fail fast so sending stays snappy.
     pub async fn download_url(&self, url: &str) -> Result<(String, Vec<u8>)> {
-        let resp = self.http.get(url).send().await?;
-        let status = resp.status();
-        if !status.is_success() {
-            return Err(MatrixError::Api {
-                status: status.as_u16(),
-                body: format!("download {} failed", url),
-            });
+        const MEDIA_FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(8);
+        let fut = async {
+            let resp = self.http.get(url).send().await?;
+            let status = resp.status();
+            if !status.is_success() {
+                return Err(MatrixError::Api {
+                    status: status.as_u16(),
+                    body: format!("download {} failed", url),
+                });
+            }
+            let content_type = resp
+                .headers()
+                .get(reqwest::header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("application/octet-stream")
+                .split(';')
+                .next()
+                .unwrap_or("application/octet-stream")
+                .trim()
+                .to_string();
+            let bytes = resp.bytes().await?.to_vec();
+            Ok((content_type, bytes))
+        };
+        match tokio::time::timeout(MEDIA_FETCH_TIMEOUT, fut).await {
+            Ok(result) => result,
+            Err(_) => Err(MatrixError::Api {
+                status: 408,
+                body: format!("download {} timed out after 8s", url),
+            }),
         }
-        let content_type = resp
-            .headers()
-            .get(reqwest::header::CONTENT_TYPE)
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("application/octet-stream")
-            .split(';')
-            .next()
-            .unwrap_or("application/octet-stream")
-            .trim()
-            .to_string();
-        let bytes = resp.bytes().await?.to_vec();
-        Ok((content_type, bytes))
     }
 
     /// POST /_matrix/media/v3/upload  -> mxc:// URI

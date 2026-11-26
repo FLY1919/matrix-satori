@@ -60,9 +60,17 @@ impl Bridge {
         if urls.is_empty() {
             return HashMap::new();
         }
+        // Fetch all URLs concurrently with a short per-request timeout. Doing
+        // this serially made one stalled/anti-hotlink link block the whole
+        // message; concurrency caps the cost at the slowest single fetch.
+        use futures::future::join_all;
+        let tasks: Vec<_> = urls
+            .iter()
+            .map(|url| async move { (url.clone(), self.upload_remote_one(url).await) })
+            .collect();
         let mut map = HashMap::new();
-        for url in urls {
-            match self.upload_remote_one(&url).await {
+        for (url, result) in join_all(tasks).await {
+            match result {
                 Ok(mxc) if !mxc.is_empty() => {
                     map.insert(url, mxc);
                 }

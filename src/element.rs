@@ -768,12 +768,33 @@ pub fn matrix_to_satori(content: &Value, homeserver: &str, self_id: &str) -> Str
             if src.is_empty() {
                 html_escape_text(body)
             } else {
-                format!(
-                    "<{} src=\"{}\" title=\"{}\"/>",
-                    tag,
+                // Carry the Matrix `info` metadata into Satori attributes so a
+                // round-trip (Satori -> Matrix -> Satori, e.g. Koishi echo)
+                // keeps the clip length. Without `duration` the client shows
+                // 00:00 for voice messages. Matrix uses `info.duration` in ms;
+                // Satori's audio duration is the same unit, pass it through.
+                let info = content.get("info");
+                let mut attrs = format!(
+                    " src=\"{}\" title=\"{}\"",
                     html_escape_attr(&http),
                     html_escape_attr(body)
-                )
+                );
+                if let Some(d) = info.and_then(|i| i.get("duration")).and_then(Value::as_i64) {
+                    attrs.push_str(&format!(" duration=\"{}\"", d));
+                }
+                if let Some(m) = info.and_then(|i| i.get("mimetype")).and_then(Value::as_str) {
+                    attrs.push_str(&format!(" mime_type=\"{}\"", html_escape_attr(m)));
+                }
+                if let Some(sz) = info.and_then(|i| i.get("size")).and_then(Value::as_i64) {
+                    attrs.push_str(&format!(" size=\"{}\"", sz));
+                }
+                if let Some(w) = info.and_then(|i| i.get("w")).and_then(Value::as_i64) {
+                    attrs.push_str(&format!(" width=\"{}\"", w));
+                }
+                if let Some(h) = info.and_then(|i| i.get("h")).and_then(Value::as_i64) {
+                    attrs.push_str(&format!(" height=\"{}\"", h));
+                }
+                format!("<{}{}/>", tag, attrs)
             }
         }
         "m.emote" => format!("* {}", html_escape_text(body)),
@@ -944,10 +965,24 @@ fn html_to_satori(html: &str, homeserver: &str, self_id: &str) -> String {
                                 "img" | "audio" | "video" | "file" => {
                                     let src = attrs.get("src").cloned().unwrap_or_default();
                                     let src = mxc_to_http(&src, homeserver);
+                                    // Preserve media metadata (e.g. duration so
+                                    // a voice clip does not round-trip to 00:00).
+                                    let mut extra = String::new();
+                                    for key in ["duration", "mime_type", "size", "width", "height"]
+                                    {
+                                        if let Some(v) = attrs.get(key) {
+                                            extra.push_str(&format!(
+                                                " {}=\"{}\"",
+                                                key,
+                                                html_escape_attr(v)
+                                            ));
+                                        }
+                                    }
                                     out.push_str(&format!(
-                                        "<{} src=\"{}\"/>",
+                                        "<{} src=\"{}\"{}/>",
                                         tag,
-                                        html_escape_attr(&src)
+                                        html_escape_attr(&src),
+                                        extra
                                     ));
                                 }
                                 _ => out.push_str(tag),
@@ -1414,6 +1449,26 @@ mod tests {
         let file = serde_json::json!({"msgtype": "m.file", "body": "doc.pdf", "url": "mxc://s/f"});
         let s = matrix_to_satori(&file, HS, "@bot:s");
         assert!(s.starts_with("<file src="), "{}", s);
+    }
+
+    #[test]
+    fn native_audio_keeps_duration_roundtrip() {
+        // A voice message must keep its length so it does not show 00:00 after
+        // a Satori -> Matrix -> Satori echo round-trip.
+        let audio = serde_json::json!({
+            "msgtype": "m.audio", "body": "voice.ogg", "url": "mxc://s/a",
+            "info": {"duration": 5320, "mimetype": "audio/ogg", "size": 4096}
+        });
+        let s = matrix_to_satori(&audio, HS, "@bot:s");
+        assert!(s.starts_with("<audio "), "{}", s);
+        assert!(s.contains("duration=\"5320\""), "{}", s);
+        assert!(s.contains("mime_type=\"audio/ogg\""), "{}", s);
+        assert!(s.contains("size=\"4096\""), "{}", s);
+        // Feeding it back into Matrix must restore info.duration.
+        let back = satori_to_matrix(&s, HS);
+        assert_eq!(back["msgtype"], "m.audio");
+        assert_eq!(back["info"]["duration"], 5320);
+        assert_eq!(back["info"]["mimetype"], "audio/ogg");
     }
 
     #[test]

@@ -15,7 +15,8 @@ Koishi (adapter-satori)  ──WebSocket/HTTP──▶  matrix-satori  ──Mat
 - Matrix 长轮询 `/sync`，断线自动重连，同步位点 + 凭据落盘（重启不丢消息、不用重复登录）
 - Matrix 事件 → Satori 事件：文本、@提及、图片/音频/视频/文件、引用回复、表情回应、成员加入/退出、房间改名、编辑、撤回
 - Satori Element ↔ Matrix HTML 双向转换（`<at>`、`<img>`、`<quote>`、`<br>`、`<emoji>`…）
-- Matrix 媒体 `mxc://` 自动转换成 HTTP URL
+- Matrix 媒体 `mxc://` 自动转换成 HTTP URL；语音/视频的 `duration` 等元数据双向保留（回显不会变 `00:00`）
+- 外部媒体 URL 并发下载、8 秒短超时，单个防盗链/卡死链接不再拖慢整条消息；`mxc://` 源直通不重复下载
 - 令牌鉴权、非 root 容器、多架构 Docker 镜像、GitHub Actions 自动发版
 
 ## 登录方式（全支持）
@@ -324,7 +325,7 @@ sync_timeout = 30000
 
 ## 已验证 / 限制
 
-- **80 个测试全部通过**：单元（53：元素解析 / 登录名 / TOML 配置自动创建·读取·CLI 覆盖 / E2EE 可用性判断 / 方法注册一致性 / Satori direction→Matrix dir 映射）+ 9 登录方式集成（password / token / appservice / access-token / auto / flows 探测 / 凭据缓存）+ 18 服务端集成（WS READY、事件推送、PING-PONG、message.create 调用链、鉴权、全 Satori 元素、全事件集、Matrix 特有 API、验证 API 降级、reaction / channel / upload）。登录测试用 mock homeserver 验证真实 HTTP 交互。
+- **81 个测试全部通过**：单元（54：元素解析 / 语音时长往返 / 登录名 / TOML 配置自动创建·读取·CLI 覆盖 / E2EE 可用性判断 / 方法注册一致性 / Satori direction→Matrix dir 映射）+ 9 登录方式集成（password / token / appservice / access-token / auto / flows 探测 / 凭据缓存）+ 18 服务端集成（WS READY、事件推送、PING-PONG、message.create 调用链、鉴权、全 Satori 元素、全事件集、Matrix 特有 API、验证 API 降级、reaction / channel / upload）。登录测试用 mock homeserver 验证真实 HTTP 交互。
 - **真实账号实测**：用 `@fly_hx:mozilla.org`（mozilla.modular.im）跑通 19/19 个 HTTP API（channel/guild/message/user/member/reaction/matrix.*/verify.* 全部 2xx），WS IDENTIFY→READY 握手携带完整 login.user；`verify` REPL 在同一会话内完成 SAS request→cancel（状态保持验证）。实测中发现并修复 `message.list` 的 `direction=before/after` 未映射为 Matrix `dir=b/f` 导致 400 的问题。
 - **单一 SDK 收发 + E2EE 已支持**：基于官方 `matrix-sdk` 用 `restore_session` 复用登录设备，全局只有一条连接，收消息和发消息都走它（加密房间自动加/解密，同一条消息只推一次）；SSO / password / token / auto 均可用，密钥经 SQLite 持久化、重启后仍可解密。启用条件、设备独占要求与历史消息限制见上方「加密房间（E2EE）与收发架构」章节。
 - 反应删除（`reaction.delete/clear`）需要 Matrix 侧的反应事件 ID，而 Satori 该 action 不带，目前是空操作。
